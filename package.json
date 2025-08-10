@@ -1,5 +1,5 @@
 {
-  "name": "binary-qtool",
+  "name": "Fixed-point-Base-Converter",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -18,3 +18,4 @@
     "@vitejs/plugin-react": "^4.3.1"
   }
 }
+
