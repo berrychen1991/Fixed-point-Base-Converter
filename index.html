@@ -1,453 +1,424 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>二進位計算機（Q 格式＋位元畫布）</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>二進位計算機（Q 格式）— 截斷模式</title>
   <style>
-    :root{
-      --bg:#0b0f14;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;
-      --danger:#f87171;--ok:#34d399;--sign:#f59e0b;--int:#10b981;--frac:#8b5cf6;
-      --bitbox:#0b1220;--border:rgba(255,255,255,.08)
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#0d1622 0%,var(--bg) 50%,#070a0f 100%);
-      color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",Arial}
+    :root{--bg:#0b0f14;--panel:#111827;--text:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;--danger:#f87171;--ok:#34d399;--border:rgba(255,255,255,.08)}
+    *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC",Arial}
     .app{max-width:1100px;margin:24px auto 80px;padding:0 16px}
-    h1{font-size:22px;margin:0 0 10px}.desc{color:var(--muted);margin-bottom:16px}
-    .panel{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));
-      border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;backdrop-filter:blur(2px)}
-    .grid{display:grid;gap:12px}
-    @media(min-width:900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
-    .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-    input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);
-      background:#0d1320;color:var(--text);outline:none}
-    .out{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;word-break:break-all;white-space:pre-wrap;
-      padding:8px 10px;border-radius:8px;background:var(--bitbox);border:1px solid var(--border)}
+    h1{font-size:22px;margin:0 0 8px}.desc{color:var(--muted);margin-bottom:12px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+    .grid{display:grid;gap:12px}@media(min-width:900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
+    .label{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0d1320;color:#e5e7eb;outline:none}
+    .copy-btn{border-radius:50%;border:1px solid var(--border);background:#0d1320;color:#e5e7eb;outline:none;cursor:pointer;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+    .copy-btn:hover{background:#0f1730}
+    .out{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;word-break:break-all;white-space:pre-wrap;padding:8px 10px;border-radius:8px;background:#0b1220;border:1px solid var(--border)}
     .small{font-size:12px;color:var(--muted)}.ok{color:var(--ok);font-size:13px}.err{color:var(--danger);font-size:13px}
-    .canvasWrap{overflow-x:auto;padding-bottom:8px}.canvasBox{background:var(--bitbox);border:1px solid var(--border);border-radius:10px;padding:8px}
+    .toast{position:fixed;right:16px;bottom:16px;background:#1f2937;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;white-space:pre-line}
+    .row{display:flex;gap:8px;align-items:center}
+    .hint{font-size:11px;color:var(--muted)}
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>二進位計算機（Q 格式 + 位元畫布）</h1>
-    <div class="desc">輸入數值 → 設定 Qm.n（m 不含符號位）與進位/正負 → 顯示 Binary/Decimal/Hex/二補數。可在畫布點位元切換。</div>
+    <h1>二進位計算機（Q 格式）</h1>
+    <div class="desc">目前 <b>捨入模式：直接捨去（Truncate / Toward 0）</b>。輸入數值 → 設定 Qm.n 與進位/正負 → 顯示 Binary/Decimal/Hex/二補數。</div>
 
     <div class="panel grid grid-3">
       <div>
         <div class="label">輸入數值</div>
-        <input id="in-value" placeholder="例如 -3.14159 或 101.01 或 FF.A" value="-3.14159">
-        <div class="small">支援 2/10/16 進位（以下方選單指定）；小數四捨五入到 2^-n。</div>
+        <input id="in-value" placeholder="例如 -3.14159 或 101.01 或 FF.A / 0xFF.A / 0b101.11" value="-3.14159" />
+        <div class="small">支援 2/10/16 進位；小數會<b>直接捨去</b>到 2^-n。</div>
       </div>
       <div>
         <div class="label">輸入進位</div>
-        <select id="in-base">
-          <option value="2">二進位 (bin)</option>
-          <option value="10" selected>十進位 (dec)</option>
-          <option value="16">十六進位 (hex)</option>
-        </select>
+        <div class="row">
+          <select id="in-base">
+            <option value="2">二進位</option>
+            <option value="10" selected>十進位</option>
+            <option value="16">十六進位</option>
+          </select>
+        </div>
+        <div class="hint">＊<b>自動判斷位元圖樣</b>：
+          <br>‣ 在二/十六進位時，若輸入 <u>沒有正負號、也沒有小數點</u>，視為「<b>位元圖樣</b>」，以 <b>m 位整數區</b>對齊（高位補 0），末尾補上 <b>n 個 0</b> 對齊小數區，最後以 N=m+n 位兩補數解讀。
+          <br>‣ 在<b>二進位且包含小數點</b>時，若輸入只含 0/1 與一個小數點，亦視為<b>位元圖樣（含二進位小數點）</b>：會將整數區補到 m 位、小數區補到 n 位。例如：m=4,n=4，輸入 <code>1001.1</code> → <code>1001.1000</code>。
+          <br>‣ 若包含正負號，則視為一般數值字面量解析。
+        </div>
       </div>
       <div>
         <div class="label">Signed / Unsigned</div>
         <select id="in-signed">
-          <option value="true" selected>Signed（二補數）</option>
-          <option value="false">Unsigned（無符號）</option>
+          <option value="true" selected>Signed</option>
+          <option value="false">Unsigned</option>
         </select>
       </div>
-
+      <div>
+        <div class="label">m 是否含符號位</div>
+        <select id="m-includes-sign">
+          <option value="true" selected>是</option>
+          <option value="false">否</option>
+        </select>
+      </div>
       <div>
         <div class="label">整數位 m</div>
-        <input id="in-m" type="number" min="0" max="60" value="3">
+        <input id="in-m" type="number" min="1" max="60" value="4" />
       </div>
       <div>
         <div class="label">小數位 n</div>
-        <input id="in-n" type="number" min="0" max="60" value="5">
+        <input id="in-n" type="number" min="0" max="60" value="4" />
       </div>
       <div>
         <div class="label">顯示小數精度</div>
-        <input id="in-prec" type="number" min="0" max="18" value="6">
-      </div>
-    </div>
-
-    <div class="panel canvasBox">
-      <div class="label">位元畫布（可左右捲動，點擊切換 0/1）</div>
-      <div class="canvasWrap">
-        <canvas id="bit-canvas" style="width:100%;height:140px;display:block"></canvas>
+        <input id="in-prec" type="number" min="0" max="18" value="6" />
       </div>
     </div>
 
     <div class="panel grid grid-2">
       <div>
-        <div class="label" id="lbl-bin">Binary</div>
+        <div class="label" id="lbl-bin"><span>Binary</span> <button class="copy-btn" data-copy="#out-bin" title="複製 Binary">⧉</button></div>
         <div class="out" id="out-bin">-</div>
       </div>
       <div>
-        <div class="label">Decimal（量化後值）</div>
+        <div class="label"><span>Decimal</span> <button class="copy-btn" data-copy="#out-dec" title="複製 Decimal">⧉</button></div>
         <div class="out" id="out-dec">-</div>
         <div class="small">顯示小數位：<span id="out-prec">6</span></div>
       </div>
       <div>
-        <div class="label">Hex（位元圖樣，以 4 位群組）</div>
+        <div class="label"><span>Hex</span> <button class="copy-btn" data-copy="#out-hex" title="複製 Hex">⧉</button></div>
         <div class="out" id="out-hex">-</div>
-        <div class="small">說明：此為定點位元圖樣的十六進位表示；小數位置由 Q 格式解讀。</div>
       </div>
       <div>
-        <div class="label">Two's complement bit pattern</div>
+        <div class="label"><span>Two's complement（~x+1）</span> <button class="copy-btn" data-copy="#out-twos" title="複製 Two's complement">⧉</button></div>
         <div class="out" id="out-twos">-</div>
       </div>
     </div>
 
     <div class="panel">
       <div id="out-status" class="ok">輸入有效，範圍內。</div>
-      <div class="small" style="margin-top:8px" id="out-range"></div>
+      <div class="small" style="margin-top:8px; white-space:pre-line" id="out-range"></div>
     </div>
   </div>
 
   <script>
-    // ---------- helpers (ASCII only) ----------
-    const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
-    const absBig = (a) => (a < 0n ? -a : a);
-    function rmall(s, needle){ const esc = needle.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&"); return s.replace(new RegExp(esc, "g"), ""); }
+    // ===== Copy helpers =====
+    function showToast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},1200)}
+    async function copySelector(sel){const el=document.querySelector(sel);if(!el){showToast('找不到輸出');return}const txt=el.textContent||'';try{await navigator.clipboard.writeText(txt);showToast('已複製')}catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('已複製')}finally{document.body.removeChild(ta)}}}
+    document.addEventListener('click',function(e){const btn=e.target.closest('[data-copy]');if(btn){copySelector(btn.getAttribute('data-copy'))}})
 
-    function bigintToBinary(n, width){
-      const W = BigInt(width);
-      const mask = (1n << W) - 1n;
-      return (n & mask).toString(2).padStart(Number(W), "0");
+    // ===== Utilities (ASCII-only, BigInt-safe) =====
+    function clamp(x,lo,hi){return (x<lo?lo:(x>hi?hi:x));}
+    function rmall(s,needle){const esc=needle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return s.replace(new RegExp(esc,'g'),'')}
+    function bigintToBinary(n,width){const W=BigInt(width);const mask=(1n<<W)-1n;return(n&mask).toString(2).padStart(Number(W),'0')}
+    function parseFractionalInBase(fracStr,base){if(!fracStr)return{num:0n,den:1n};const k=fracStr.length;const den=BigInt(base)**BigInt(k);let num=0n;for(let i=0;i<k;i++){const v=parseInt(fracStr[i],base);if(!Number.isFinite(v)||v<0||v>=base)return null;num=num*BigInt(base)+BigInt(v)}return{num:num,den:den}}
+    function parseSignedDecimal(str){const s=rmall(str.trim(),'_');if(!s)return null;let sign=1n;let t=s;if(t[0]==='+')t=t.slice(1);else if(t[0]==='-'){sign=-1n;t=t.slice(1)}let intPart=0n,i=0;while(i<t.length&&t[i]!=='.'){const code=t.charCodeAt(i)-48;if(code<0||code>9)return null;intPart=intPart*10n+BigInt(code);i++}let num=0n,den=1n;if(i<t.length&&t[i]==='.'){{const f=parseFractionalInBase(t.slice(i+1),10);if(!f)return null;num=f.num;den=f.den}}return{sign:sign,intPart:intPart,num:num,den:den}}
+
+    // 允許 0x/0X 與 0b/0B 前綴；忽略空白；支援 base=2/16 的小數
+    function parseBaseInput(valueStr,base){
+      let s=rmall(valueStr.trim(),'_');
+      s=s.replace(/\s+/g,'');
+      let sign=1n;
+      if(s.startsWith('-')){sign=-1n;s=s.slice(1)}
+      else if(s.startsWith('+')){s=s.slice(1)}
+      if(base===2&&(s.startsWith('0b')||s.startsWith('0B'))) s=s.slice(2);
+      if(base===16&&(s.startsWith('0x')||s.startsWith('0X'))) s=s.slice(2);
+      const parts=s.split('.');
+      if(parts.length>2) return null;
+      const ip=parts[0];
+      const fp=(parts.length>1?parts[1]:'');
+      let intVal=0n;
+      for(let i=0;i<ip.length;i++){
+        const v=parseInt(ip[i],base);
+        if(!Number.isFinite(v)||v<0||v>=base) return null;
+        intVal=intVal*BigInt(base)+BigInt(v);
+      }
+      const frac=parseFractionalInBase(fp,base); if(!frac) return null;
+      return {sign:sign,intVal:intVal,frac:frac};
     }
 
-    function parseFractionalInBase(fracStr, base){
-      if (!fracStr) return { num:0n, den:1n };
-      const k = fracStr.length;
-      const den = BigInt(base) ** BigInt(k);
-      let num = 0n;
-      for (let i=0; i<k; i++){
-        const v = parseInt(fracStr[i], base);
-        if (!Number.isFinite(v) || v < 0 || v >= base) return null;
-        num = num * BigInt(base) + BigInt(v);
-      }
-      return { num, den };
+    // 位元圖樣（整數區 m 位 + 末尾補 n 個 0）
+    function parseAsBitPattern(valueStr, base, m, n, totalBits, signed){
+      if(!(base===2||base===16)) return { err:'僅支援在二/十六進位下以位元圖樣輸入。' };
+      let s=rmall(valueStr.trim(),'_');
+      s=s.replace(/\s+/g,'');
+      if(base===2&&(s.startsWith('0b')||s.startsWith('0B'))) s=s.slice(2);
+      if(base===16&&(s.startsWith('0x')||s.startsWith('0X'))) s=s.slice(2);
+      s=s.replace(/\./g,'');
+      const re = base===2 ? /^[01]+$/i : /^[0-9a-f]+$/i;
+      if(!re.test(s)) return { err:'位元圖樣包含非法字元。' };
+      let valRaw = 0n;
+      for(let i=0;i<s.length;i++){ valRaw = valRaw*BigInt(base) + BigInt(parseInt(s[i],base)); }
+      const kbits = (base===2) ? s.length : 4*s.length;
+      if(kbits>m) return { err:'位元圖樣（整數區）長度超過 m。' };
+      const shiftToM = Math.max(0, m - kbits);
+      let valM = valRaw << BigInt(shiftToM);
+      let valN = valM << BigInt(n);
+      const N = totalBits; const mask=(1n<<BigInt(N))-1n; valN &= mask;
+      const topBit = (valN >> BigInt(N-1)) & 1n;
+      const scaled = (signed && topBit===1n) ? (valN - (1n<<BigInt(N))) : valN;
+      return { scaled: scaled, overflow:false };
     }
 
-    function parseSignedDecimal(str){
-      const s = rmall(str.trim(), "_");
-      if (!s) return null;
-      let sign = 1n;
-      let t = s;
-      if (t[0] === "+") t = t.slice(1);
-      else if (t[0] === "-"){ sign = -1n; t = t.slice(1); }
-
-      let intPart = 0n, i = 0;
-      while (i < t.length && t[i] !== "."){
-        const code = t.charCodeAt(i) - 48;
-        if (code < 0 || code > 9) return null;
-        intPart = intPart * 10n + BigInt(code);
-        i++;
+    // 位元圖樣（含二進位小數點）：整數區補到 m 位、小數區補到 n 位
+    function parseAsBinaryPointPattern(valueStr, m, n, totalBits, signed, mIncludesSign){
+      let s=rmall(valueStr.trim(),'_');
+      s=s.replace(/\s+/g,'');
+      if(s.startsWith('+')||s.startsWith('-')) return { err:'位元圖樣不接受正負號。' };
+      if(s.startsWith('0b')||s.startsWith('0B')) s=s.slice(2);
+      const parts = s.split('.');
+      if(parts.length!==2) return { err:'內部錯誤：需要二進位小數點。' };
+      const ip = parts[0], fp = parts[1];
+      if(!/^([01]*)$/.test(ip) || !/^([01]*)$/.test(fp)) return { err:'位元圖樣包含非法字元。' };
+      if(ip.length>m) return { err:'整數區位數超過 m。' };
+      if(fp.length>n) return { err:'小數區位數超過 n。' };
+      const ipPad = ip.padStart(m,'0');
+      const fpPad = fp.padEnd(n,'0');
+      const bitStrLower = ipPad + fpPad; // 長度 m+n
+      let val = 0n;
+      for(let i=0;i<bitStrLower.length;i++){
+        val = (val<<1n) + (bitStrLower[i]==='1'?1n:0n);
       }
-      let num = 0n, den = 1n;
-      if (i < t.length && t[i] === "."){
-        const f = parseFractionalInBase(t.slice(i+1), 10);
-        if (!f) return null;
-        num = f.num; den = f.den;
-      }
-      return { sign, intPart, num, den };
+      const N = totalBits; // 若 signed 且 m 不含符號位，N=m+1+n，最高位（符號位）預設為 0
+      const mask=(1n<<BigInt(N))-1n; val &= mask;
+      const topBit = (val >> BigInt(N-1)) & 1n;
+      const scaled = (signed && topBit===1n) ? (val - (1n<<BigInt(N))) : val;
+      return { scaled: scaled, overflow:false };
     }
 
-    // parse input to scaled (value * 2^n), clamp to range
-    function parseInputToScaled({ valueStr, base, signed, intBits, fracBits }){
-      const N = (signed ? 1 : 0) + intBits + fracBits;
-      if (N <= 0 || intBits < 0 || fracBits < 0) return { err:"Invalid bit widths." };
-      const scale = 1n << BigInt(fracBits);
+    // Core: parse input to scaled integer using TRUNCATION (toward zero)
+    function parseInputToScaled(cfg){
+      var valueStr=cfg.valueStr, base=cfg.base, signed=cfg.signed, m=cfg.m, n=cfg.n, mIncludesSign=cfg.mIncludesSign;
+      const totalBits = signed ? (mIncludesSign ? (m + n) : (m + 1 + n)) : (m + n);
+      if (totalBits <= 0 || m < 0 || n < 0) return { err: 'Invalid bit widths.' };
 
-      let rationalNum = 0n, rationalDen = 1n, negative = false;
-
-      if (base === 10){
-        const p = parseSignedDecimal(valueStr);
-        if (p === null) return { err:"Invalid decimal input." };
-        negative = p.sign < 0n;
-        rationalNum = p.intPart * p.den + p.num;
-        rationalDen = p.den;
-      } else {
-        let s = rmall(valueStr.trim(), "_");
-        let sg = 1;
-        if (s.startsWith("-")){ sg = -1; s = s.slice(1); }
-        else if (s.startsWith("+")){ s = s.slice(1); }
-        const parts = s.split(".");
-        if (parts.length > 2) return { err:"Too many decimal points." };
-        const [ip, fp=""] = parts;
-
-        let intVal = 0n;
-        for (let i=0; i<ip.length; i++){
-          const v = parseInt(ip[i], base);
-          if (!Number.isFinite(v) || v < 0 || v >= base) return { err:"Invalid digit for base." };
-          intVal = intVal * BigInt(base) + BigInt(v);
+      // Auto-detect 位元圖樣：
+      // 1) base=2/16 且「無正負號、無小數點」→ 整數區 m 位 + 末尾補 n 個 0
+      // 2) base=2 且「無正負號、含一個小數點（僅 0/1）」→ 二進位小數點模式（整數補到 m、小數補到 n）
+      {
+        var raw0 = rmall(String(valueStr).trim(),'_').replace(/\s+/g,'');
+        var hasSign0 = raw0.startsWith('+') || raw0.startsWith('-');
+        var hasDot0 = raw0.indexOf('.')>=0;
+        if (base===2 || base===16){
+          var raw = raw0;
+          if (hasSign0) raw = raw.slice(1);
+          if (base===2 && (raw.startsWith('0b')||raw.startsWith('0B'))) raw = raw.slice(2);
+          if (base===16 && (raw.startsWith('0x')||raw.startsWith('0X'))) raw = raw.slice(2);
+          var reInt = base===2 ? /^[01]+$/i : /^[0-9a-f]+$/i;
+          if(!hasSign0 && !hasDot0 && reInt.test(raw)){
+            const r=parseAsBitPattern(valueStr, base, m, n, totalBits, signed);
+            if(r.err) return { err:r.err };
+            const N=totalBits; let min, max;
+            if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
+            else { min = 0n; max = (1n << BigInt(N)) - 1n; }
+            const overflow = (r.scaled < min || r.scaled > max);
+            const scaled = overflow ? (r.scaled<min?min:max) : r.scaled;
+            return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
+          }
+          if(base===2 && !hasSign0 && hasDot0){
+            var reBinPoint = /^([01]*)\.([01]*)$/;
+            if(reBinPoint.test(raw0.replace(/^0[bB]/,''))){
+              const r2 = parseAsBinaryPointPattern(valueStr, m, n, totalBits, signed, mIncludesSign);
+              if(r2.err) return { err:r2.err };
+              const N=totalBits; let min, max;
+              if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
+              else { min = 0n; max = (1n << BigInt(N)) - 1n; }
+              const overflow = (r2.scaled < min || r2.scaled > max);
+              const scaled = overflow ? (r2.scaled<min?min:max) : r2.scaled;
+              return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
+            }
+          }
         }
-        const frac = parseFractionalInBase(fp, base);
-        if (!frac) return { err:"Invalid fractional digits." };
-
-        negative = sg < 0;
-        rationalNum = intVal * frac.den + frac.num;
-        rationalDen = frac.den;
       }
 
-      // scaledAbs = round((num/den) * 2^fracBits), half-up
-      const scaledAbsTimesDen = rationalNum * (1n << BigInt(fracBits));
-      let scaledAbs = scaledAbsTimesDen / rationalDen;
-      const rem = scaledAbsTimesDen % rationalDen;
-      if (rem * 2n >= rationalDen) scaledAbs += 1n;
+      let rationalNum=0n,rationalDen=1n,negative=false;
+      if (base === 10){
+        const p=parseSignedDecimal(valueStr);
+        if (p === null) return { err: 'Invalid decimal input.' };
+        negative=p.sign < 0n; rationalNum=p.intPart * p.den + p.num; rationalDen=p.den;
+      } else {
+        const p=parseBaseInput(valueStr,base);
+        if (p === null) return { err: 'Invalid input for base '+base+'.' };
+        negative=p.sign < 0n; rationalNum=p.intVal * p.frac.den + p.frac.num; rationalDen=p.frac.den;
+      }
+
+      // Truncate toward zero
+      const scaledAbs=(rationalNum * (1n << BigInt(n))) / rationalDen;
+
+      // Unsigned 不接受負數（除了 -0），直接報錯
+      if (!signed && negative && scaledAbs !== 0n){
+        return { err: 'Unsigned 模式不接受負數。請改為 Signed 或輸入非負數。' };
+      }
+
       let scaled = negative ? -scaledAbs : scaledAbs;
 
-      let min, max;
-      if (signed){ min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
+      // Clamp to representable range
+      const N = totalBits; let min, max;
+      if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
       else { min = 0n; max = (1n << BigInt(N)) - 1n; }
-      const overflow = scaled < min || scaled > max;
-      if (overflow) scaled = scaled < min ? min : max;
-
-      return { scaled, overflow };
+      const overflow = (scaled < min || scaled > max); if (overflow) scaled = (scaled < min ? min : max);
+      return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
     }
 
-    function binaryWithPointFromScaled(scaled, totalBits, fracBits, signed){
-      const N = Number(totalBits), F = Number(fracBits);
-      const mask = (1n << BigInt(N)) - 1n;
-      let twos = scaled;
-      if (signed && scaled < 0n) twos = (scaled + (1n << BigInt(N))) & mask;
-      const bits = bigintToBinary(twos, N);
-      if (F <= 0) return bits;
-      const cut = Math.max(0, bits.length - F);
-      return bits.slice(0, cut) + "." + bits.slice(cut);
+    function binaryWithPointFromScaled(scaled,totalBits,n,signed){const N=Number(totalBits),F=Number(n);const mask=(1n<<BigInt(N))-1n;let twos=scaled;if(signed&&scaled<0n)twos=(scaled+(1n<<BigInt(N)))&mask;const bits=bigintToBinary(twos,N);if(F<=0)return bits;const cut=Math.max(0,bits.length-F);return bits.slice(0,cut)+'.'+bits.slice(cut)}
+    function hexFromScaled(scaled,totalBits,signed){const N=Number(totalBits);const mask=(1n<<BigInt(N))-1n;let twos=scaled;if(signed&&scaled<0n)twos=(scaled+(1n<<BigInt(N)))&mask;return twos.toString(16).toUpperCase().padStart(Math.ceil(N/4),'0')}
+    function twosComplementPattern(scaled,totalBits,signed){
+      const N=Number(totalBits);
+      const W=BigInt(N);
+      const mask=(1n<<W)-1n;
+      // 取得目前值在 N 位下的位元圖樣（兩補數表達）
+      let bitsVal = scaled;
+      if(bitsVal<0n){ bitsVal = (1n<<W) + bitsVal; }
+      bitsVal &= mask;
+      // 計算補數：~x + 1（模 2^N）
+      let comp = ((~bitsVal) + 1n) & mask;
+      return bigintToBinary(comp,N);
+    }
+    function scaledToDecimalString(scaled,n,precision){
+      const sign = scaled<0n?'-':'';
+      const abs = scaled<0n?-scaled:scaled;
+      const intPart = abs>>BigInt(n);
+      const fracMask=(1n<<BigInt(n))-1n;
+      const frac=abs&fracMask;
+      if(n===0) return sign+intPart.toString();
+      if(precision<=0){ return sign+intPart.toString(); }
+      const tenPow = 10n**BigInt(precision);
+      let fracDec = (frac*tenPow)>>BigInt(n);
+      let fracStr = fracDec.toString().padStart(precision,'0');
+      fracStr = fracStr.replace(/0+$/,'');
+      if(fracStr.length===0) return sign+intPart.toString();
+      return sign+intPart.toString()+'.'+fracStr;
     }
 
-    function hexFromScaled(scaled, totalBits, signed){
-      const N = Number(totalBits);
-      const mask = (1n << BigInt(N)) - 1n;
-      let twos = scaled;
-      if (signed && scaled < 0n) twos = (scaled + (1n << BigInt(N))) & mask;
-      return twos.toString(16).toUpperCase().padStart(Math.ceil(N/4), "0");
-    }
+    // ===== Wire UI =====
+    const elValue=document.getElementById('in-value');
+    const elBase=document.getElementById('in-base');
+    const elSigned=document.getElementById('in-signed');
+    const elMincl=document.getElementById('m-includes-sign');
+    const elM=document.getElementById('in-m');
+    const elN=document.getElementById('in-n');
+    const elPrec=document.getElementById('in-prec');
 
-    function scaledToDecimalString(scaled, fracBits, precision){
-      const sign = scaled < 0n ? "-" : "";
-      const abs = absBig(scaled);
-      const intPart = abs >> BigInt(fracBits);
-      const fracMask = (1n << BigInt(fracBits)) - 1n;
-      const frac = abs & fracMask;
-      if (precision <= 0 || fracBits === 0) return sign + intPart.toString();
+    const outBin=document.getElementById('out-bin');
+    const outDec=document.getElementById('out-dec');
+    const outHex=document.getElementById('out-hex');
+    const outTwos=document.getElementById('out-twos');
+    const lblBin=document.getElementById('lbl-bin');
+    const outPrec=document.getElementById('out-prec');
+    const outStatus=document.getElementById('out-status');
+    const outRange=document.getElementById('out-range');
 
-      const tenPow = 10n ** BigInt(precision);
-      const fracDec = (frac * tenPow + (1n << BigInt(fracBits-1))) >> BigInt(fracBits);
-      return sign + intPart.toString() + "." + fracDec.toString().padStart(precision, "0");
-    }
-
-    // ---------- UI state ----------
-    const elValue = document.getElementById("in-value");
-    const elBase  = document.getElementById("in-base");
-    const elSigned= document.getElementById("in-signed");
-    const elM     = document.getElementById("in-m");
-    const elN     = document.getElementById("in-n");
-    const elPrec  = document.getElementById("in-prec");
-
-    const outBin  = document.getElementById("out-bin");
-    const outDec  = document.getElementById("out-dec");
-    const outHex  = document.getElementById("out-hex");
-    const outTwos = document.getElementById("out-twos");
-    const lblBin  = document.getElementById("lbl-bin");
-    const outPrec = document.getElementById("out-prec");
-    const outStatus = document.getElementById("out-status");
-    const outRange  = document.getElementById("out-range");
-
-    const canvas = document.getElementById("bit-canvas");
-    let hoverIndex = null;
-
-    function currentState(){
+    function state(){
       return {
         valueStr: elValue.value,
-        base: parseInt(elBase.value, 10),
-        signed: elSigned.value === "true",
-        m: clamp(parseInt(elM.value||"0",10), 0, 60),
-        n: clamp(parseInt(elN.value||"0",10), 0, 60),
-        precision: clamp(parseInt(elPrec.value||"0",10), 0, 18)
+        base: parseInt(elBase.value,10),
+        signed: elSigned.value==='true',
+        mIncludesSign: elMincl.value==='true',
+        m: clamp(parseInt(elM.value||'0',10),1,60),
+        n: clamp(parseInt(elN.value||'0',10),0,60),
+        precision: clamp(parseInt(elPrec.value||'0',10),0,18)
       };
     }
 
-    function updateUI(){
-      const { valueStr, base, signed, m, n, precision } = currentState();
-      const totalBits = (signed ? 1 : 0) + m + n;
+    function update(){
+      const S=state();
+      const N=S.signed ? (S.mIncludesSign ? (S.m+S.n) : (S.m+1+S.n)) : (S.m+S.n);
+      const parsed=parseInputToScaled({ valueStr:S.valueStr, base:S.base, signed:S.signed, m:S.m, n:S.n, mIncludesSign:S.mIncludesSign });
+      const err=parsed.err; const scaled=err?0n:parsed.scaled; const overflow=err?false:parsed.overflow;
 
-      const parsed = parseInputToScaled({ valueStr, base, signed, intBits: m, fracBits: n });
-      const err = parsed.err;
-      const scaled = err ? 0n : parsed.scaled;
-      const overflow = err ? false : parsed.overflow;
+      outPrec.textContent=String(S.precision);
+      lblBin.innerHTML='<span>Binary（Q'+S.m+'.'+S.n+(S.signed?('，m'+(S.mIncludesSign?'含':'不含')+'符號位'):'')+'）</span> <button class="copy-btn" data-copy="#out-bin" title="複製 Binary">⧉</button>';
 
-      outPrec.textContent = String(precision);
-      lblBin.textContent = `Binary（Q${m}.${n}）`;
-
-      if (err){
-        outStatus.className = "err";
-        outStatus.textContent = "輸入錯誤：" + err;
-        outBin.textContent = "-";
-        outDec.textContent = "-";
-        outHex.textContent = "-";
-        outTwos.textContent = "-";
-        outRange.textContent = "";
-      } else {
-        outStatus.className = overflow ? "err" : "ok";
-        outStatus.textContent = overflow ? "已飽和到可表示範圍。" : "輸入有效，範圍內。";
-
-        outBin.textContent = binaryWithPointFromScaled(scaled, totalBits, n, signed);
-        outDec.textContent = scaledToDecimalString(scaled, n, precision);
-
-        const hex = hexFromScaled(scaled, totalBits, signed);
-        outHex.textContent = (hex.match(/.{1,4}/g) || [hex]).join(" ");
-
-        const mask = (1n << BigInt(totalBits)) - 1n;
-        let v = scaled;
-        if (signed && v < 0n) v = (v + (1n << BigInt(totalBits))) & mask;
-        const plain = bigintToBinary(v, totalBits);
-        outTwos.textContent = (plain.match(/.{1,4}/g) || [plain]).join(" ");
-
-        const min = signed ? (-(1n << BigInt(totalBits-1))) : 0n;
-        const max = signed ? ((1n << BigInt(totalBits-1)) - 1n) : ((1n << BigInt(totalBits)) - 1n);
-        outRange.textContent = `總位寬：${totalBits} 位（${signed ? "含符號位 1 + " : ""}整數 ${m} + 小數 ${n}）。解析度：2^-` + n + `。Scaled 範圍：[${min.toString()}, ${max.toString()}]`;
+      if(err){
+        outStatus.className='err'; outStatus.textContent='輸入錯誤：'+err;
+        outBin.textContent=outDec.textContent=outHex.textContent=outTwos.textContent='-';
+        outRange.textContent='';
+        return;
       }
 
-      drawCanvas(totalBits, n, signed, err ? 0n : scaled);
+      outStatus.className=overflow?'err':'ok';
+      outStatus.textContent=overflow?'已飽和到可表示範圍。':'輸入有效，範圍內。';
+
+      outBin.textContent=binaryWithPointFromScaled(scaled,N,S.n,S.signed);
+      outDec.textContent=scaledToDecimalString(scaled,S.n,S.precision);
+
+      const hex=hexFromScaled(scaled,N,S.signed);
+      outHex.textContent=(hex.match(/.{1,4}/g)||[hex]).join(' ');
+
+      const twosBits=twosComplementPattern(scaled,N,S.signed);
+      outTwos.textContent=(twosBits.match(/.{1,4}/g)||[twosBits]).join(' ');
+
+      const min=S.signed?(-(1n<<BigInt(N-1))):0n;
+      const max=S.signed?((1n<<BigInt(N-1))-1n):((1n<<BigInt(N))-1n);
+      const line1='總位寬：'+N+' 位（'+(S.signed?((S.mIncludesSign?'m 含符號位':'m 不含符號位')+'，'):'')+'整數 '+S.m+' + 小數 '+S.n+'）。解析度：2^-'+S.n+'。Scaled 範圍：['+min.toString()+', '+max.toString()+']';
+      const minReal=scaledToDecimalString(min,S.n,S.precision);
+      const maxReal=scaledToDecimalString(max,S.n,S.precision);
+      const line2='可表實數範圍：['+minReal+', '+maxReal+']';
+      outRange.textContent=line1+'\n'+line2;
     }
 
-    function drawCanvas(N, fracBits, signed, scaled){
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      canvas.width = Math.floor(w*dpr);
-      canvas.height= Math.floor(h*dpr);
-      const ctx = canvas.getContext("2d");
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-
-      ctx.clearRect(0,0,w,h);
-      const padding = 12, top = 42, boxH = 44, gap = 6;
-      const maxBoxW = Math.max(22, Math.min(48, (w - padding*2)/N - 4));
-      const left = padding;
-
-      const mask = (1n << BigInt(N)) - 1n;
-      let twos = scaled;
-      if (signed && scaled < 0n) twos = (scaled + (1n << BigInt(N))) & mask;
-      const bitstr = bigintToBinary(twos, N);
-
-      ctx.font = "14px sans-serif"; ctx.fillStyle = "#9ca3af";
-      ctx.fillText("Click a box to toggle the bit", padding, 16);
-      ctx.fillText(`Total ${N} bits | signed: ${signed ? "two's complement" : "unsigned"} | frac bits: ${fracBits}`, padding, 30);
-
-      for (let i=0;i<N;i++){
-        const x = left + i * (maxBoxW + gap);
-        const y = top;
-        const isSign = signed && i===0;
-        const isFrac = i >= N - fracBits;
-        const isHover = hoverIndex === i;
-
-        ctx.beginPath(); ctx.rect(x,y,maxBoxW,boxH);
-        ctx.fillStyle = isHover ? "#e5e7eb" : isSign ? "#f59e0b33" : isFrac ? "#8b5cf633" : "#60a5fa22";
-        ctx.fill(); ctx.strokeStyle="#9ca3af"; ctx.stroke();
-
-        const bit = bitstr[i];
-        ctx.fillStyle = "#e5e7eb"; ctx.textAlign="center"; ctx.textBaseline="middle";
-        ctx.font="bold 16px ui-monospace, SFMono-Regular, Menlo, monospace";
-        ctx.fillText(bit, x + maxBoxW/2, y + boxH/2);
-
-        ctx.font = "10px ui-monospace, monospace"; ctx.fillStyle = "#9ca3af";
-        ctx.fillText(String(i), x + maxBoxW/2, y + boxH + 10);
-
-        if (i === N - fracBits - 1 && fracBits > 0){
-          ctx.beginPath(); ctx.moveTo(x + maxBoxW + gap/2, y); ctx.lineTo(x + maxBoxW + gap/2, y + boxH);
-          ctx.setLineDash([4,4]); ctx.strokeStyle="#60a5fa"; ctx.stroke(); ctx.setLineDash([]);
-        }
-      }
-
-      // events
-      canvas.onmousemove = (e)=>{
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        if (my < top || my > top + boxH){ hoverIndex = null; updateUIThrottle(); return; }
-        const stride = maxBoxW + gap;
-        let idx = Math.floor((mx - left) / stride);
-        const x0 = left + idx * stride;
-        if (idx < 0 || idx >= N || mx < x0 || mx > x0 + maxBoxW){ hoverIndex = null; updateUIThrottle(); return; }
-        hoverIndex = idx; updateUIThrottle();
-      };
-      canvas.onmouseleave = ()=>{ hoverIndex = null; updateUIThrottle(); };
-      canvas.onclick = (e)=>{
-        const state = currentState();
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        if (my < top || my > top + boxH) return;
-        const stride = Math.max(22, Math.min(48, (w - padding*2)/N - 4)) + gap;
-        let idx = Math.floor((mx - left) / stride);
-        const x0 = left + idx * (stride);
-        if (idx < 0 || idx >= N || mx < x0 || mx > x0 + (stride-gap)) return;
-
-        // toggle bit at idx (0 = MSB)
-        const mask = (1n << BigInt(N)) - 1n;
-        let twos = parseInputToScaled({ valueStr: state.valueStr, base: state.base, signed: state.signed, intBits: state.m, fracBits: state.n }).scaled;
-        if (state.signed && twos < 0n) twos = (twos + (1n << BigInt(N))) & mask;
-        const bitMask = 1n << BigInt(N - 1 - idx);
-        let twosNew = (twos ^ bitMask) & mask;
-        let scaledNew = (state.signed && (twosNew & (1n << BigInt(N-1)))) ? (twosNew - (1n << BigInt(N))) : twosNew;
-
-        const newDec = scaledToDecimalString(scaledNew, state.n, Math.max(12, state.precision));
-        elValue.value = newDec;
-        updateUI();
-      };
-    }
-
-    // simple throttle for hover redraws
-    let rafId = null;
-    function updateUIThrottle(){ if (rafId) cancelAnimationFrame(rafId); rafId = requestAnimationFrame(()=>{ updateUI(); rafId=null; }); }
-
-    // wire inputs
-    ["input","change"].forEach(evt=>{
-      elValue.addEventListener(evt, updateUI);
-      elBase.addEventListener(evt, updateUI);
-      elSigned.addEventListener(evt, updateUI);
-      elM.addEventListener(evt, updateUI);
-      elN.addEventListener(evt, updateUI);
-      elPrec.addEventListener(evt, updateUI);
+    ;['input','change'].forEach(function(evt){
+      var list=document.querySelectorAll('input,select');
+      for(var i=0;i<list.length;i++){ list[i].addEventListener(evt,update); }
     });
 
-    // initial render + self tests
-    updateUI();
-    runSelfTests();
+    // First render
+    update();
 
-    // ---------- self tests (console) ----------
-    function runSelfTests(){
-      const tests = [];
-      const eq = (name, a, b)=>{ tests.push([Object.is(a,b), name, a, b]); };
+    // ===== Quick self-tests (console) =====
+    (function selfTests(){
+      var tests=[]; 
+      function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
+      var r = parseInputToScaled({ valueStr:'1.99', base:10, signed:false, m:4, n:2, mIncludesSign:false });
+      eq('pos trunc scaled', r.scaled, 7n);
+      r = parseInputToScaled({ valueStr:'-1.99', base:10, signed:true, m:4, n:2, mIncludesSign:true });
+      eq('neg trunc scaled', r.scaled, -7n);
+      r = parseInputToScaled({ valueStr:'101.11', base:2, signed:false, m:6, n:2, mIncludesSign:false });
+      eq('bin frac', r.scaled, 23n);
+      r = parseInputToScaled({ valueStr:'0b101.11', base:2, signed:false, m:6, n:2, mIncludesSign:false });
+      eq('bin frac with prefix', r.scaled, 23n);
+      r = parseInputToScaled({ valueStr:'FF.A', base:16, signed:false, m:12, n:3, mIncludesSign:false });
+      eq('hex frac', r.scaled, 2045n);
+      r = parseInputToScaled({ valueStr:'0xFF.A', base:16, signed:false, m:12, n:3, mIncludesSign:false });
+      eq('hex frac with prefix', r.scaled, 2045n);
+      r = parseInputToScaled({ valueStr:'-9', base:10, signed:true, m:4, n:0, mIncludesSign:true });
+      eq('signed clamp', r.scaled, -8n);
+      // auto as-bits：整數區對齊後補 n 個 0
+      r = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:0, mIncludesSign:true });
+      eq("auto bits: '1001' (N=4, signed) -> -7", r.scaled, -7n);
+      r = parseInputToScaled({ valueStr:'F', base:16, signed:true, m:4, n:0, mIncludesSign:true });
+      eq("auto bits: 'F' (N=4, signed) -> -1", r.scaled, -1n);
+      r = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("auto bits: '1001' (N=8, signed, m=4,n=4) -> scaled -112", r.scaled, -112n);
+      r = parseInputToScaled({ valueStr:'0111', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("auto bits: '0111' (N=8, signed) -> scaled +112", r.scaled, 112n);
+      r = parseInputToScaled({ valueStr:'9', base:16, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("auto bits: '9' (N=8, signed) -> scaled -112", r.scaled, -112n);
+      // auto binary-point bits：整數補到 m、小數補到 n
+      var r2 = parseInputToScaled({ valueStr:'1001.1', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("auto bin-point: scaled -104", r2.scaled, -104n);
+      eq("bin print for '1001.1' (Q4.4) -> 1001.1000", binaryWithPointFromScaled(r2.scaled, 8, 4, true), '1001.1000');
+      eq("decimal print for '1001.1' (Q4.4) -> -6.5", scaledToDecimalString(r2.scaled, 4, 6), '-6.5');
+      // two's complement correctness
+      var rNeg112 = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of -112 -> 01110000", twosComplementPattern(rNeg112.scaled, 8, true), '01110000');
+      var rPos112 = parseInputToScaled({ valueStr:'0111', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of +112 -> 10010000", twosComplementPattern(rPos112.scaled, 8, true), '10010000');
+      var rZero = parseInputToScaled({ valueStr:'0', base:10, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of 0 -> 00000000", twosComplementPattern(rZero.scaled, 8, true), '00000000');
+      var rMin = parseInputToScaled({ valueStr:'-8', base:10, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of min -> 10000000", twosComplementPattern(rMin.scaled, 8, true), '10000000');
+      // update should not throw
+      try { update(); eq('update runs', true, true); } catch(e){ eq('update runs', true, false); }
 
-      // BigInt padding
-      eq("bigintToBinary pad 8", bigintToBinary(5n,8), "00000101");
-
-      // two's of -1, 8 bits
-      const N = 8;
-      const s2 = bigintToBinary( ((-1n + (1n<<BigInt(N))) & ((1n<<BigInt(N))-1n)), N );
-      eq("two's -1 (8b)", s2, "11111111");
-
-      // Q1.3 signed: -0.75 -> scaled -6 (since 0.75 * 2^3 = 6), bin "1.010" int.frac but our printer shows full N bits with point at n=3
-      const p = parseInputToScaled({ valueStr:"-0.75", base:10, signed:true, intBits:1, fracBits:3 });
-      eq("Q1.3 scaled", p.scaled, -6n);
-
-      // fracBits=0 edge
-      const p2 = parseInputToScaled({ valueStr:"5", base:10, signed:false, intBits:4, fracBits:0 });
-      eq("fracBits=0", p2.scaled, 5n);
-      eq("fracBits=0 dec", scaledToDecimalString(p2.scaled, 0, 6), "5");
-
-      // hex pad and group
-      eq("hex of 0xF pad", hexFromScaled(15n, 8, false), "0F");
-
-      const pass = tests.filter(t=>t[0]).length;
-      const fail = tests.filter(t=>!t[0]);
-      console.group("[SelfTests] single-file qtool");
-      console.log(`Passed: ${pass}/${tests.length}`);
-      fail.forEach(([ok,name,a,b])=>console.warn("FAIL:", name, "got:", a, "expected:", b));
+      var pass = tests.filter(function(t){return t[0];}).length; 
+      var fail = tests.filter(function(t){return !t[0];});
+      console.group('[SelfTests]');
+      console.log('Passed: '+pass+'/'+tests.length);
+      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn('FAIL:', t[1], 'got:', t[2], 'expected:', t[3]); }
       console.groupEnd();
-    }
+    })();
   </script>
 </body>
 </html>
