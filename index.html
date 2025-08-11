@@ -11,7 +11,7 @@
     h1{font-size:22px;margin:0 0 8px}.desc{color:var(--muted);margin-bottom:12px}
     .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
     .grid{display:grid;gap:12px}@media(min-width:900px){.grid-2{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr 1fr}}
-    .label{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .label{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px;position:relative}
     input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0d1320;color:#e5e7eb;outline:none}
     .copy-btn{border-radius:50%;border:1px solid var(--border);background:#0d1320;color:#e5e7eb;outline:none;cursor:pointer;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
     .copy-btn:hover{background:#0f1730}
@@ -20,6 +20,21 @@
     .toast{position:fixed;right:16px;bottom:16px;background:#1f2937;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;white-space:pre-line}
     .row{display:flex;gap:8px;align-items:center}
     .hint{font-size:11px;color:var(--muted)}
+    /* === Tooltip for input rules === */
+    .help{border:1px solid var(--border);background:#0d1320;color:var(--muted);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+    .help:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .help-tip{position:absolute;right:0;top:100%;margin-top:6px;display:none;background:#0f172a;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;max-width:360px;z-index:50;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .label:hover .help-tip,.help:focus+.help-tip{display:block}
+    .help-title{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .help-list{margin:0;padding-left:16px}
+    .help-list li{margin:2px 0}
+    /* === Inline error === */
+    .invalid{border-color:var(--danger)!important;box-shadow:0 0 0 2px rgba(248,113,113,.15)}
+    .field-msg{font-size:12px;color:var(--danger);min-height:1em;margin-top:6px}
+    /* === Sign bit highlight === */
+    .signbit{font-weight:700;text-decoration:underline dotted rgba(255,255,255,.18)}
+    .sign1{color:var(--danger)}
+    .sign0{color:var(--accent)}
   </style>
 </head>
 <body>
@@ -29,12 +44,34 @@
 
     <div class="panel grid grid-3">
       <div>
-        <div class="label">輸入數值</div>
+        <div class="label">輸入數值
+          <button type="button" class="help" aria-label="輸入規則說明">?</button>
+          <div class="help-tip" role="tooltip" aria-hidden="true">
+            <div class="help-title">輸入規則</div>
+            <ul class="help-list">
+              <li>二/十六進位無正負號且無小數點 → 視為 <b>位元圖樣</b>：整數補到 m 位、末尾補 n 個 0；以 <b>N=m（若 m 不含符號位且為 Signed 則 +1）+ n</b> 位兩補數解讀。</li>
+              <li>二進位含小數點且只含 0/1 → 視為 <b>位元圖樣（含小數點）</b>：整數補到 m、小數補到 n。例：m=4,n=4，<code>1001.1</code> → <code>1001.1000</code>。</li>
+              <li>若有正負號 → 視為 <b>一般數值字面量</b>（依進位解析，並捨去至 2^-n）。</li>
+              <li>支援 <code>0b/0x</code> 前綴、底線分隔符與空白（自動忽略）。</li>
+            </ul>
+          </div>
+        </div>
         <input id="in-value" placeholder="例如 -3.14159 或 101.01 或 FF.A / 0xFF.A / 0b101.11" value="-3.14159" />
+        <div class="field-msg" id="msg-value"></div>
         <div class="small">支援 2/10/16 進位；小數會<b>直接捨去</b>到 2^-n。</div>
       </div>
       <div>
-        <div class="label">輸入進位</div>
+        <div class="label">輸入進位
+          <button type="button" class="help" aria-label="輸入進位說明">?</button>
+          <div class="help-tip" role="tooltip" aria-hidden="true">
+            <div class="help-title">輸入進位</div>
+            <ul class="help-list">
+              <li>選擇輸入的進位（2 / 10 / 16）。</li>
+              <li>支援 <code>0b/0x</code> 前綴、空白與底線分隔符（自動忽略）。</li>
+              <li>在 2/16 且無正負號、無小數點 → 視為位元圖樣；在 2 且含小數點（僅 0/1）→ 視為位元圖樣（含二進位小數點）。</li>
+            </ul>
+          </div>
+        </div>
         <div class="row">
           <select id="in-base">
             <option value="2">二進位</option>
@@ -42,26 +79,45 @@
             <option value="16">十六進位</option>
           </select>
         </div>
-        <div class="hint">＊<b>自動判斷位元圖樣</b>：
-          <br>‣ 在二/十六進位時，若輸入 <u>沒有正負號、也沒有小數點</u>，視為「<b>位元圖樣</b>」，以 <b>m 位整數區</b>對齊（高位補 0），末尾補上 <b>n 個 0</b> 對齊小數區，最後以 N=m+n 位兩補數解讀。
-          <br>‣ 在<b>二進位且包含小數點</b>時，若輸入只含 0/1 與一個小數點，亦視為<b>位元圖樣（含二進位小數點）</b>：會將整數區補到 m 位、小數區補到 n 位。例如：m=4,n=4，輸入 <code>1001.1</code> → <code>1001.1000</code>。
-          <br>‣ 若包含正負號，則視為一般數值字面量解析。
-        </div>
       </div>
       <div>
-        <div class="label">Signed / Unsigned</div>
+        <div class="label">Signed / Unsigned
+          <button type="button" class="help" aria-label="Signed / Unsigned 說明">?</button>
+          <div class="help-tip" role="tooltip" aria-hidden="true">
+            <div class="help-title">Signed / Unsigned</div>
+            <ul class="help-list">
+              <li><b>Signed</b>：兩補數表示；位寬 N = m（若 m 不含符號位且為 Signed 則 +1）+ n。</li>
+              <li>Signed 範圍：<code>[-2^(N-1), 2^(N-1)-1]</code>；Unsigned 範圍：<code>[0, 2^N-1]</code>。</li>
+              <li>超出範圍會<b>飽和</b>到最近的可表值。</li>
+              <li><b>Two's complement</b> 區塊顯示當前 N 位圖樣的補數 <code>~x + 1</code>（模 2^N），並以 <b>m.n</b> 插入小數點。</li>
+            </ul>
+          </div>
+        </div>
         <select id="in-signed">
           <option value="true" selected>Signed</option>
           <option value="false">Unsigned</option>
         </select>
       </div>
       <div>
-        <div class="label">m 是否含符號位</div>
+        <div class="label">m 是否含符號位
+          <button type="button" class="help" aria-label="m 是否含符號位說明">?</button>
+          <div class="help-tip" role="tooltip" aria-hidden="true">
+            <div class="help-title">m 是否含符號位</div>
+            <ul class="help-list">
+              <li><b>是</b>：m 含 sign bit。若為 <b>Signed</b>，<code>N = m + n</code>，整數有效位數為 <code>m - 1</code>。</li>
+              <li><b>否</b>：m 不含 sign bit。若為 <b>Signed</b>，<code>N = (m + 1) + n</code>（額外加 1 個符號位）。</li>
+              <li><b>Unsigned</b> 模式下，此選項<b>沒有影響</b>（<code>N = m + n</code>）。</li>
+              <li>自動位元圖樣：整數區一律補到 <code>m</code> 位；若 <b>Signed 且 m 不含符號位</b>，最高位符號位預設為 0。</li>
+              <li>例：Q4.4、Signed、<b>是</b> → N=8；Q4.4、Signed、<b>否</b> → N=9。</li>
+            </ul>
+          </div>
+        </div>
         <select id="m-includes-sign">
           <option value="true" selected>是</option>
           <option value="false">否</option>
         </select>
       </div>
+
       <div>
         <div class="label">整數位 m</div>
         <input id="in-m" type="number" min="1" max="60" value="4" />
@@ -73,6 +129,15 @@
       <div>
         <div class="label">顯示小數精度</div>
         <input id="in-prec" type="number" min="0" max="18" value="6" />
+      </div>
+      <div>
+        <div class="label">位元分組</div>
+        <select id="in-group">
+          <option value="none">不分組</option>
+          <option value="auto" selected>依 m.n 自動</option>
+          <option value="4">每 4 位</option>
+          <option value="8">每 8 位</option>
+        </select>
       </div>
     </div>
 
@@ -97,326 +162,425 @@
     </div>
 
     <div class="panel">
-      <div id="out-status" class="ok">輸入有效，範圍內。</div>
+      <div id="out-status" class="ok" aria-live="polite">輸入有效，範圍內。</div>
       <div class="small" style="margin-top:8px; white-space:pre-line" id="out-range"></div>
     </div>
   </div>
 
   <script>
     // ===== Copy helpers =====
-    function showToast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},1200)}
-    async function copySelector(sel){const el=document.querySelector(sel);if(!el){showToast('找不到輸出');return}const txt=el.textContent||'';try{await navigator.clipboard.writeText(txt);showToast('已複製')}catch(e){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');showToast('已複製')}finally{document.body.removeChild(ta)}}}
-    document.addEventListener('click',function(e){const btn=e.target.closest('[data-copy]');if(btn){copySelector(btn.getAttribute('data-copy'))}})
+    function showToast(msg){
+      const t=document.createElement("div"); t.className="toast"; t.textContent=String(msg);
+      document.body.appendChild(t); setTimeout(function(){ t.remove(); },1200);
+    }
+    async function copySelector(sel){
+      const el=document.querySelector(sel); if(!el){ showToast("找不到輸出"); return; }
+      const txt=el.textContent||"";
+      try{ await navigator.clipboard.writeText(txt); showToast("已複製"); }
+      catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); showToast("已複製"); } finally{ document.body.removeChild(ta); } }
+    }
+    document.addEventListener("click",function(e){ const btn=e.target.closest("[data-copy]"); if(btn){ copySelector(btn.getAttribute("data-copy")); } });
 
     // ===== Utilities (ASCII-only, BigInt-safe) =====
-    function clamp(x,lo,hi){return (x<lo?lo:(x>hi?hi:x));}
-    function rmall(s,needle){const esc=needle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return s.replace(new RegExp(esc,'g'),'')}
-    function bigintToBinary(n,width){const W=BigInt(width);const mask=(1n<<W)-1n;return(n&mask).toString(2).padStart(Number(W),'0')}
-    function parseFractionalInBase(fracStr,base){if(!fracStr)return{num:0n,den:1n};const k=fracStr.length;const den=BigInt(base)**BigInt(k);let num=0n;for(let i=0;i<k;i++){const v=parseInt(fracStr[i],base);if(!Number.isFinite(v)||v<0||v>=base)return null;num=num*BigInt(base)+BigInt(v)}return{num:num,den:den}}
-    function parseSignedDecimal(str){const s=rmall(str.trim(),'_');if(!s)return null;let sign=1n;let t=s;if(t[0]==='+')t=t.slice(1);else if(t[0]==='-'){sign=-1n;t=t.slice(1)}let intPart=0n,i=0;while(i<t.length&&t[i]!=='.'){const code=t.charCodeAt(i)-48;if(code<0||code>9)return null;intPart=intPart*10n+BigInt(code);i++}let num=0n,den=1n;if(i<t.length&&t[i]==='.'){{const f=parseFractionalInBase(t.slice(i+1),10);if(!f)return null;num=f.num;den=f.den}}return{sign:sign,intPart:intPart,num:num,den:den}}
+    function clamp(x,lo,hi){ return (x<lo?lo:(x>hi?hi:x)); }
+    function rmall(s,needle){ const esc=needle.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); return s.replace(new RegExp(esc,"g"),""); }
+    function bigintToBinary(n,width){ const W=BigInt(width); const mask=(1n<<W)-1n; return (n & mask).toString(2).padStart(Number(W),"0"); }
+    function parseFractionalInBase(fracStr,base){ if(!fracStr) return { num:0n, den:1n }; const k=fracStr.length; const den=BigInt(base)**BigInt(k); let num=0n; for(let i=0;i<k;i++){ const v=parseInt(fracStr[i],base); if(!Number.isFinite(v)||v<0||v>=base) return null; num=num*BigInt(base)+BigInt(v);} return { num:num, den:den }; }
+    function parseSignedDecimal(str){ const s=rmall(str.trim(),"_"); if(!s) return null; let sign=1n; let t=s; if(t[0]==="+") t=t.slice(1); else if(t[0]==="-"){ sign=-1n; t=t.slice(1);} let intPart=0n, i=0; while(i<t.length && t[i]!=="."){ const code=t.charCodeAt(i)-48; if(code<0||code>9) return null; intPart=intPart*10n+BigInt(code); i++; } let num=0n, den=1n; if(i<t.length && t[i]==="."){ const f=parseFractionalInBase(t.slice(i+1),10); if(!f) return null; num=f.num; den=f.den; } return { sign:sign, intPart:intPart, num:num, den:den }; }
+
+    // 前綴自動偵測：0b/0B → 2；0x/0X → 16
+    function detectPrefixBase(valueStr){
+      let s=rmall(String(valueStr||"").trim(),"_");
+      s=s.replace(/\s+/g,"");
+      if(!s) return null;
+      if(s[0]==="+"||s[0]==="-") s=s.slice(1);
+      if(/^0[bB]/.test(s)) return 2;
+      if(/^0[xX]/.test(s)) return 16;
+      return null;
+    }
+
+    // 無前綴時的自動猜測：若只含 0/1 或 0-9A-F/a-f（含至少一個 A-F），嘗試自動判斷 2 或 16 進位
+    function detectHeuristicBase(valueStr){
+      let s = rmall(String(valueStr||"").trim(),"_");
+      // 移除所有 ASCII <= 32 的空白控制字元
+      s = s.split("").filter(function(ch){ return ch.charCodeAt(0) > 32; }).join("");
+      if(!s) return null;
+      if(s[0]==="+"||s[0]==="-") s=s.slice(1);
+      // 已帶前綴就不猜
+      if(s.startsWith("0b")||s.startsWith("0B")||s.startsWith("0x")||s.startsWith("0X")) return null;
+      // 二進位：僅 0/1 與最多一個小數點
+      var dot=0, only01=true, any01=false;
+      for(var i=0;i<s.length;i++){
+        var ch=s[i];
+        if(ch===".") { dot++; if(dot>1){ only01=false; break; } continue; }
+        if(ch==="0" || ch==="1"){ any01=true; continue; }
+        only01=false; break;
+      }
+      if(only01 && (any01 || s.indexOf(".")>=0)) return 2;
+      // 十六進位：0-9/A-F/a-f 與最多一個小數點，且至少含一個 A–F/a–f（避免把 10.5 當作 16 進位）
+      dot=0; var allHex=true, hasAlpha=false, anyHex=false;
+      for(i=0;i<s.length;i++){
+        ch=s[i];
+        if(ch===".") { dot++; if(dot>1){ allHex=false; break; } continue; }
+        anyHex=true;
+        var code=ch.charCodeAt(0);
+        var isDigit = code>=48 && code<=57;
+        var isUpper = code>=65 && code<=70; // A-F
+        var isLower = code>=97 && code<=102; // a-f
+        if(!(isDigit||isUpper||isLower)){ allHex=false; break; }
+        if(isUpper||isLower) hasAlpha=true;
+      }
+      if(allHex && anyHex && hasAlpha) return 16;
+      return null;
+    }
 
     // 允許 0x/0X 與 0b/0B 前綴；忽略空白；支援 base=2/16 的小數
     function parseBaseInput(valueStr,base){
-      let s=rmall(valueStr.trim(),'_');
-      s=s.replace(/\s+/g,'');
+      let s=rmall(valueStr.trim(),"_");
+      s=s.replace(/\s+/g,"");
       let sign=1n;
-      if(s.startsWith('-')){sign=-1n;s=s.slice(1)}
-      else if(s.startsWith('+')){s=s.slice(1)}
-      if(base===2&&(s.startsWith('0b')||s.startsWith('0B'))) s=s.slice(2);
-      if(base===16&&(s.startsWith('0x')||s.startsWith('0X'))) s=s.slice(2);
-      const parts=s.split('.');
-      if(parts.length>2) return null;
-      const ip=parts[0];
-      const fp=(parts.length>1?parts[1]:'');
-      let intVal=0n;
-      for(let i=0;i<ip.length;i++){
-        const v=parseInt(ip[i],base);
-        if(!Number.isFinite(v)||v<0||v>=base) return null;
-        intVal=intVal*BigInt(base)+BigInt(v);
-      }
-      const frac=parseFractionalInBase(fp,base); if(!frac) return null;
-      return {sign:sign,intVal:intVal,frac:frac};
+      if(s.startsWith("-")){sign=-1n; s=s.slice(1);} else if(s.startsWith("+")){ s=s.slice(1); }
+      if(base===2 && (s.startsWith("0b")||s.startsWith("0B"))) s=s.slice(2);
+      if(base===16 && (s.startsWith("0x")||s.startsWith("0X"))) s=s.slice(2);
+      const parts=s.split("."); if(parts.length>2) return null;
+      const ip=parts[0]; const fp=(parts.length>1?parts[1]:"");
+      let intVal=0n; for(let i=0;i<ip.length;i++){ const v=parseInt(ip[i],base); if(!Number.isFinite(v)||v<0||v>=base) return null; intVal=intVal*BigInt(base)+BigInt(v); }
+      const frac=parseFractionalInBase(fp,base); if(!frac) return null; return { sign:sign, intVal:intVal, frac:frac };
     }
 
     // 位元圖樣（整數區 m 位 + 末尾補 n 個 0）
     function parseAsBitPattern(valueStr, base, m, n, totalBits, signed){
-      if(!(base===2||base===16)) return { err:'僅支援在二/十六進位下以位元圖樣輸入。' };
-      let s=rmall(valueStr.trim(),'_');
-      s=s.replace(/\s+/g,'');
-      if(base===2&&(s.startsWith('0b')||s.startsWith('0B'))) s=s.slice(2);
-      if(base===16&&(s.startsWith('0x')||s.startsWith('0X'))) s=s.slice(2);
-      s=s.replace(/\./g,'');
-      const re = base===2 ? /^[01]+$/i : /^[0-9a-f]+$/i;
-      if(!re.test(s)) return { err:'位元圖樣包含非法字元。' };
-      let valRaw = 0n;
-      for(let i=0;i<s.length;i++){ valRaw = valRaw*BigInt(base) + BigInt(parseInt(s[i],base)); }
-      const kbits = (base===2) ? s.length : 4*s.length;
-      if(kbits>m) return { err:'位元圖樣（整數區）長度超過 m。' };
-      const shiftToM = Math.max(0, m - kbits);
-      let valM = valRaw << BigInt(shiftToM);
-      let valN = valM << BigInt(n);
-      const N = totalBits; const mask=(1n<<BigInt(N))-1n; valN &= mask;
-      const topBit = (valN >> BigInt(N-1)) & 1n;
-      const scaled = (signed && topBit===1n) ? (valN - (1n<<BigInt(N))) : valN;
-      return { scaled: scaled, overflow:false };
+      if(!(base===2||base===16)) return { err:"僅支援在二/十六進位下以位元圖樣輸入。" };
+      let s=rmall(valueStr.trim(),"_"); s=s.replace(/\s+/g,"");
+      if(base===2 && (s.startsWith("0b")||s.startsWith("0B"))) s=s.slice(2);
+      if(base===16 && (s.startsWith("0x")||s.startsWith("0X"))) s=s.slice(2);
+      s=s.replace(/\./g,"");
+      const re = base===2 ? /^[01]+$/i : /^[0-9a-f]+$/i; if(!re.test(s)) return { err:"位元圖樣包含非法字元。" };
+      let valRaw=0n; for(let i=0;i<s.length;i++){ valRaw=valRaw*BigInt(base)+BigInt(parseInt(s[i],base)); }
+      const kbits=(base===2)?s.length:4*s.length; if(kbits>m) return { err:"位元圖樣（整數區）長度超過 m。" };
+      // 右對齊至整數區 m 位：不左移，直接在尾端補 n 個 0
+      let valM=valRaw; let valN=valM<<BigInt(n);
+      const N=totalBits; const mask=(1n<<BigInt(N))-1n; valN &= mask; const topBit=(valN>>BigInt(N-1))&1n; const scaled=(signed && topBit===1n)?(valN-(1n<<BigInt(N))):valN;
+      return { scaled:scaled, overflow:false };
     }
 
     // 位元圖樣（含二進位小數點）：整數區補到 m 位、小數區補到 n 位
     function parseAsBinaryPointPattern(valueStr, m, n, totalBits, signed, mIncludesSign){
-      let s=rmall(valueStr.trim(),'_');
-      s=s.replace(/\s+/g,'');
-      if(s.startsWith('+')||s.startsWith('-')) return { err:'位元圖樣不接受正負號。' };
-      if(s.startsWith('0b')||s.startsWith('0B')) s=s.slice(2);
-      const parts = s.split('.');
-      if(parts.length!==2) return { err:'內部錯誤：需要二進位小數點。' };
-      const ip = parts[0], fp = parts[1];
-      if(!/^([01]*)$/.test(ip) || !/^([01]*)$/.test(fp)) return { err:'位元圖樣包含非法字元。' };
-      if(ip.length>m) return { err:'整數區位數超過 m。' };
-      if(fp.length>n) return { err:'小數區位數超過 n。' };
-      const ipPad = ip.padStart(m,'0');
-      const fpPad = fp.padEnd(n,'0');
-      const bitStrLower = ipPad + fpPad; // 長度 m+n
-      let val = 0n;
-      for(let i=0;i<bitStrLower.length;i++){
-        val = (val<<1n) + (bitStrLower[i]==='1'?1n:0n);
-      }
-      const N = totalBits; // 若 signed 且 m 不含符號位，N=m+1+n，最高位（符號位）預設為 0
-      const mask=(1n<<BigInt(N))-1n; val &= mask;
-      const topBit = (val >> BigInt(N-1)) & 1n;
-      const scaled = (signed && topBit===1n) ? (val - (1n<<BigInt(N))) : val;
-      return { scaled: scaled, overflow:false };
+      let s=rmall(valueStr.trim(),"_"); s=s.replace(/\s+/g,"");
+      if(s.startsWith("+")||s.startsWith("-")) return { err:"位元圖樣不接受正負號。" };
+      if(s.startsWith("0b")||s.startsWith("0B")) s=s.slice(2);
+      const parts=s.split("."); if(parts.length!==2) return { err:"內部錯誤：需要二進位小數點。" };
+      const ip=parts[0], fp=parts[1]; if(!/^([01]*)$/.test(ip) || !/^([01]*)$/.test(fp)) return { err:"位元圖樣包含非法字元。" };
+      if(ip.length>m) return { err:"整數區位數超過 m。" };
+      if(fp.length>n) return { err:"小數區位數超過 n。" };
+      const ipPad=ip.padStart(m,"0"); const fpPad=fp.padEnd(n,"0"); const bitStrLower=ipPad+fpPad; // 長度 m+n
+      let val=0n; for(let i=0;i<bitStrLower.length;i++){ val=(val<<1n)+ (bitStrLower[i]==="1"?1n:0n); }
+      const N=totalBits; const mask=(1n<<BigInt(N))-1n; val &= mask; const topBit=(val>>BigInt(N-1))&1n; const scaled=(signed && topBit===1n)?(val-(1n<<BigInt(N))):val;
+      return { scaled:scaled, overflow:false };
     }
 
     // Core: parse input to scaled integer using TRUNCATION (toward zero)
     function parseInputToScaled(cfg){
       var valueStr=cfg.valueStr, base=cfg.base, signed=cfg.signed, m=cfg.m, n=cfg.n, mIncludesSign=cfg.mIncludesSign;
+      // 依前綴/啟發自動偵測有效進位
+      var baseEff=(function(){ var b=detectPrefixBase(valueStr); if(b) return b; var h=detectHeuristicBase(valueStr); return h? h : base; })();
       const totalBits = signed ? (mIncludesSign ? (m + n) : (m + 1 + n)) : (m + n);
-      if (totalBits <= 0 || m < 0 || n < 0) return { err: 'Invalid bit widths.' };
+      if (totalBits <= 0 || m < 0 || n < 0) return { err: "Invalid bit widths." };
 
-      // Auto-detect 位元圖樣：
-      // 1) base=2/16 且「無正負號、無小數點」→ 整數區 m 位 + 末尾補 n 個 0
-      // 2) base=2 且「無正負號、含一個小數點（僅 0/1）」→ 二進位小數點模式（整數補到 m、小數補到 n）
+      // Auto-detect 位元圖樣
       {
-        var raw0 = rmall(String(valueStr).trim(),'_').replace(/\s+/g,'');
-        var hasSign0 = raw0.startsWith('+') || raw0.startsWith('-');
-        var hasDot0 = raw0.indexOf('.')>=0;
-        if (base===2 || base===16){
-          var raw = raw0;
-          if (hasSign0) raw = raw.slice(1);
-          if (base===2 && (raw.startsWith('0b')||raw.startsWith('0B'))) raw = raw.slice(2);
-          if (base===16 && (raw.startsWith('0x')||raw.startsWith('0X'))) raw = raw.slice(2);
-          var reInt = base===2 ? /^[01]+$/i : /^[0-9a-f]+$/i;
+        var raw0=rmall(String(valueStr).trim(),"_").replace(/\s+/g,"");
+        var hasSign0=raw0.startsWith("+")||raw0.startsWith("-");
+        var hasDot0=raw0.indexOf(".")>=0;
+        if(baseEff===2 || baseEff===16){
+          var raw=raw0; if(hasSign0) raw=raw.slice(1);
+          if(baseEff===2 && (raw.startsWith("0b")||raw.startsWith("0B"))) raw=raw.slice(2);
+          if(baseEff===16 && (raw.startsWith("0x")||raw.startsWith("0X"))) raw=raw.slice(2);
+          var reInt = baseEff===2 ? /^[01]+$/i : /^[0-9a-f]+$/i;
           if(!hasSign0 && !hasDot0 && reInt.test(raw)){
-            const r=parseAsBitPattern(valueStr, base, m, n, totalBits, signed);
-            if(r.err) return { err:r.err };
-            const N=totalBits; let min, max;
-            if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
-            else { min = 0n; max = (1n << BigInt(N)) - 1n; }
-            const overflow = (r.scaled < min || r.scaled > max);
-            const scaled = overflow ? (r.scaled<min?min:max) : r.scaled;
-            return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
+            const r=parseAsBitPattern(valueStr, baseEff, m, n, totalBits, signed); if(r.err) return { err:r.err };
+            const N=totalBits; let min, max; if(signed){ min=-(1n<<BigInt(N-1)); max=(1n<<BigInt(N-1))-1n; } else { min=0n; max=(1n<<BigInt(N))-1n; }
+            const overflow=(r.scaled<min || r.scaled>max); const scaled=overflow?(r.scaled<min?min:max):r.scaled; return { scaled:scaled, overflow:overflow, totalBits:N, min:min, max:max };
           }
-          if(base===2 && !hasSign0 && hasDot0){
-            var reBinPoint = /^([01]*)\.([01]*)$/;
-            if(reBinPoint.test(raw0.replace(/^0[bB]/,''))){
-              const r2 = parseAsBinaryPointPattern(valueStr, m, n, totalBits, signed, mIncludesSign);
-              if(r2.err) return { err:r2.err };
-              const N=totalBits; let min, max;
-              if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
-              else { min = 0n; max = (1n << BigInt(N)) - 1n; }
-              const overflow = (r2.scaled < min || r2.scaled > max);
-              const scaled = overflow ? (r2.scaled<min?min:max) : r2.scaled;
-              return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
+          if(baseEff===2 && !hasSign0 && hasDot0){
+            var reBinPoint=/^([01]*)\.([01]*)$/; if(reBinPoint.test(raw0.replace(/^0[bB]/,""))){
+              const r2=parseAsBinaryPointPattern(valueStr, m, n, totalBits, signed, mIncludesSign); if(r2.err) return { err:r2.err };
+              const N=totalBits; let min, max; if(signed){ min=-(1n<<BigInt(N-1)); max=(1n<<BigInt(N-1))-1n; } else { min=0n; max=(1n<<BigInt(N))-1n; }
+              const overflow=(r2.scaled<min || r2.scaled>max); const scaled=overflow?(r2.scaled<min?min:max):r2.scaled; return { scaled:scaled, overflow:overflow, totalBits:N, min:min, max:max };
             }
           }
         }
       }
 
-      let rationalNum=0n,rationalDen=1n,negative=false;
-      if (base === 10){
-        const p=parseSignedDecimal(valueStr);
-        if (p === null) return { err: 'Invalid decimal input.' };
-        negative=p.sign < 0n; rationalNum=p.intPart * p.den + p.num; rationalDen=p.den;
+      let rationalNum=0n, rationalDen=1n, negative=false;
+      if(baseEff===10){
+        const p=parseSignedDecimal(valueStr); if(p===null) return { err:"Invalid decimal input." };
+        negative=p.sign<0n; rationalNum=p.intPart*p.den + p.num; rationalDen=p.den;
       } else {
-        const p=parseBaseInput(valueStr,base);
-        if (p === null) return { err: 'Invalid input for base '+base+'.' };
-        negative=p.sign < 0n; rationalNum=p.intVal * p.frac.den + p.frac.num; rationalDen=p.frac.den;
+        const p=parseBaseInput(valueStr,baseEff); if(p===null) return { err:"Invalid input for base "+baseEff+"." };
+        negative=p.sign<0n; rationalNum=p.intVal*p.frac.den + p.frac.num; rationalDen=p.frac.den;
       }
 
       // Truncate toward zero
-      const scaledAbs=(rationalNum * (1n << BigInt(n))) / rationalDen;
+      const scaledAbs=(rationalNum*(1n<<BigInt(n)))/rationalDen;
 
-      // Unsigned 不接受負數（除了 -0），直接報錯
-      if (!signed && negative && scaledAbs !== 0n){
-        return { err: 'Unsigned 模式不接受負數。請改為 Signed 或輸入非負數。' };
-      }
+      // Unsigned 不接受負數（除了 -0）
+      if(!signed && negative && scaledAbs!==0n){ return { err:"Unsigned 模式不接受負數。請改為 Signed 或輸入非負數。" }; }
 
       let scaled = negative ? -scaledAbs : scaledAbs;
 
-      // Clamp to representable range
-      const N = totalBits; let min, max;
-      if (signed) { min = -(1n << BigInt(N-1)); max = (1n << BigInt(N-1)) - 1n; }
-      else { min = 0n; max = (1n << BigInt(N)) - 1n; }
-      const overflow = (scaled < min || scaled > max); if (overflow) scaled = (scaled < min ? min : max);
-      return { scaled: scaled, overflow: overflow, totalBits: N, min: min, max: max };
+      // Clamp
+      const N=totalBits; let min, max; if(signed){ min=-(1n<<BigInt(N-1)); max=(1n<<BigInt(N-1))-1n; } else { min=0n; max=(1n<<BigInt(N))-1n; }
+      const overflow=(scaled<min || scaled>max); if(overflow) scaled=(scaled<min?min:max);
+      return { scaled:scaled, overflow:overflow, totalBits:N, min:min, max:max };
     }
 
-    function binaryWithPointFromScaled(scaled,totalBits,n,signed){const N=Number(totalBits),F=Number(n);const mask=(1n<<BigInt(N))-1n;let twos=scaled;if(signed&&scaled<0n)twos=(scaled+(1n<<BigInt(N)))&mask;const bits=bigintToBinary(twos,N);if(F<=0)return bits;const cut=Math.max(0,bits.length-F);return bits.slice(0,cut)+'.'+bits.slice(cut)}
-    function hexFromScaled(scaled,totalBits,signed){const N=Number(totalBits);const mask=(1n<<BigInt(N))-1n;let twos=scaled;if(signed&&scaled<0n)twos=(scaled+(1n<<BigInt(N)))&mask;return twos.toString(16).toUpperCase().padStart(Math.ceil(N/4),'0')}
+    function binaryWithPointFromScaled(scaled,totalBits,n,signed){ const N=Number(totalBits), F=Number(n); const mask=(1n<<BigInt(N))-1n; let twos=scaled; if(signed&&scaled<0n) twos=(scaled+(1n<<BigInt(N)))&mask; const bits=bigintToBinary(twos,N); if(F<=0) return bits; const cut=Math.max(0,bits.length-F); return bits.slice(0,cut)+"."+bits.slice(cut); }
+    function hexFromScaled(scaled,totalBits,signed){ const N=Number(totalBits); const mask=(1n<<BigInt(N))-1n; let twos=scaled; if(signed&&scaled<0n) twos=(scaled+(1n<<BigInt(N)))&mask; return twos.toString(16).toUpperCase().padStart(Math.ceil(N/4),"0"); }
     function twosComplementPattern(scaled,totalBits,signed){
-      const N=Number(totalBits);
-      const W=BigInt(N);
-      const mask=(1n<<W)-1n;
-      // 取得目前值在 N 位下的位元圖樣（兩補數表達）
-      let bitsVal = scaled;
-      if(bitsVal<0n){ bitsVal = (1n<<W) + bitsVal; }
-      bitsVal &= mask;
-      // 計算補數：~x + 1（模 2^N）
-      let comp = ((~bitsVal) + 1n) & mask;
-      return bigintToBinary(comp,N);
+      const N=Number(totalBits); const W=BigInt(N); const mask=(1n<<W)-1n;
+      let bitsVal=scaled; if(bitsVal<0n){ bitsVal=(1n<<W)+bitsVal; } bitsVal &= mask;
+      let comp=((~bitsVal)+1n) & mask; return bigintToBinary(comp,N);
     }
     function scaledToDecimalString(scaled,n,precision){
-      const sign = scaled<0n?'-':'';
-      const abs = scaled<0n?-scaled:scaled;
-      const intPart = abs>>BigInt(n);
-      const fracMask=(1n<<BigInt(n))-1n;
-      const frac=abs&fracMask;
-      if(n===0) return sign+intPart.toString();
-      if(precision<=0){ return sign+intPart.toString(); }
-      const tenPow = 10n**BigInt(precision);
-      let fracDec = (frac*tenPow)>>BigInt(n);
-      let fracStr = fracDec.toString().padStart(precision,'0');
-      fracStr = fracStr.replace(/0+$/,'');
-      if(fracStr.length===0) return sign+intPart.toString();
-      return sign+intPart.toString()+'.'+fracStr;
+      const sign=scaled<0n?"-":""; const abs=scaled<0n?-scaled:scaled; const intPart=abs>>BigInt(n); const fracMask=(1n<<BigInt(n))-1n; const frac=abs & fracMask;
+      if(n===0) return sign+intPart.toString(); if(precision<=0) return sign+intPart.toString();
+      const tenPow=10n**BigInt(precision); let fracDec=(frac*tenPow)>>BigInt(n); let fracStr=fracDec.toString().padStart(precision,"0"); fracStr=fracStr.replace(/0+$/,"");
+      if(fracStr.length===0) return sign+intPart.toString(); return sign+intPart.toString()+"."+fracStr;
     }
 
-    // ===== Wire UI =====
-    const elValue=document.getElementById('in-value');
-    const elBase=document.getElementById('in-base');
-    const elSigned=document.getElementById('in-signed');
-    const elMincl=document.getElementById('m-includes-sign');
-    const elM=document.getElementById('in-m');
-    const elN=document.getElementById('in-n');
-    const elPrec=document.getElementById('in-prec');
+    // ===== Grouping helpers =====
+    function groupLeft(s,size){ if(!size||size<=0) return s; const out=[]; let i=s.length; while(i>0){ const start=Math.max(0,i-size); out.push(s.slice(start,i)); i=start; } return out.reverse().join(" "); }
+    function groupRight(s,size){ if(!size||size<=0) return s; const out=[]; for(let i=0;i<s.length;i+=size){ out.push(s.slice(i,i+size)); } return out.join(" "); }
+    // 在 Two's complement 顯示中，依 m.n 在第 I 位插入小數點
+    function insertDotAtMN(binStr, ctx){ if(!ctx) return binStr; const I=ctx.signed ? (ctx.mIncludesSign?ctx.m:(ctx.m+1)) : ctx.m; if(!ctx.n||ctx.n<=0) return binStr; if(binStr.length<=I) return binStr; return binStr.slice(0,I)+"."+binStr.slice(I); }
+    function groupBinaryString(binWithDot, mode, ctx){
+      if(mode==="none" || !binWithDot) return binWithDot;
+      function intLenFromCtx(){ if(!ctx) return (binWithDot.includes(".")? binWithDot.split(".")[0].length : Math.max(0, binWithDot.length - (ctx?ctx.n:0))); if(ctx.signed){ return ctx.mIncludesSign?ctx.m:(ctx.m+1);} return ctx.m; }
+      if(mode==="auto"){ const I=intLenFromCtx(); const dotIdx=binWithDot.indexOf("."); if(dotIdx>=0){ let L=binWithDot.slice(0,dotIdx); const R=binWithDot.slice(dotIdx+1); if(ctx && ctx.signed && !ctx.mIncludesSign && L.length>=1){ L=L.slice(0,1)+" "+L.slice(1);} return R.length ? (L+"."+R) : L; } else { const L=binWithDot.slice(0,I); const R=binWithDot.slice(I); let LG=L; if(ctx && ctx.signed && !ctx.mIncludesSign && L.length>=1){ LG=L.slice(0,1)+" "+L.slice(1);} return R.length ? (LG+" "+R) : LG; } }
+      const size = mode==="8"?8:4; const parts=binWithDot.split("."); if(parts.length===1) return groupLeft(parts[0],size); const L=groupLeft(parts[0],size); const R=groupRight(parts[1],size); return R.length? (L+"."+R) : L;
+    }
 
-    const outBin=document.getElementById('out-bin');
-    const outDec=document.getElementById('out-dec');
-    const outHex=document.getElementById('out-hex');
-    const outTwos=document.getElementById('out-twos');
-    const lblBin=document.getElementById('lbl-bin');
-    const outPrec=document.getElementById('out-prec');
-    const outStatus=document.getElementById('out-status');
-    const outRange=document.getElementById('out-range');
+    // ===== Sign marking =====
+    function decorateSign(displayStr, ctx){
+      if(!displayStr || !ctx || !ctx.signed) return displayStr; let i=0; while(i<displayStr.length && displayStr[i]===" ") i++; if(i>=displayStr.length) return displayStr; const c=displayStr[i]; if(c!=="0" && c!=="1") return displayStr; const cls=(c==="1"?"signbit sign1":"signbit sign0"); return displayStr.slice(0,i)+"<span class=\""+cls+"\" title=\"sign bit\">"+c+"</span>"+displayStr.slice(i+1);
+    }
+
+    // ===== Inline error helpers =====
+    function setFieldError(el, msgEl, msg){ if(!el||!msgEl) return; if(msg){ el.classList.add("invalid"); el.setAttribute("aria-invalid","true"); msgEl.textContent=String(msg); } else { el.classList.remove("invalid"); el.removeAttribute("aria-invalid"); msgEl.textContent=""; } }
+
+    // ===== State persistence =====
+    const STORAGE_KEY="qcalc_state_v3";
+    function saveState(){ try{ const data={ value:elValue.value, base:elBase.value, signed:elSigned.value, mIncludesSign:elMincl.value, m:elM.value, n:elN.value, prec:elPrec.value, group:elGroup.value }; localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e){} }
+    function loadState(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return; const d=JSON.parse(raw||"{}"); if(d && typeof d==="object"){ if(d.value!=null) elValue.value=d.value; if(d.base!=null) elBase.value=d.base; if(d.signed!=null) elSigned.value=d.signed; if(d.mIncludesSign!=null) elMincl.value=d.mIncludesSign; if(d.m!=null) elM.value=d.m; if(d.n!=null) elN.value=d.n; if(d.prec!=null) elPrec.value=d.prec; if(d.group!=null) elGroup.value=d.group; } } catch(e){} }
+
+    // ===== Wire UI =====
+    const elValue=document.getElementById("in-value");
+    const elBase=document.getElementById("in-base");
+    const elSigned=document.getElementById("in-signed");
+    const elMincl=document.getElementById("m-includes-sign");
+    const elM=document.getElementById("in-m");
+    const elN=document.getElementById("in-n");
+    const elPrec=document.getElementById("in-prec");
+    const elGroup=document.getElementById("in-group");
+
+    const outBin=document.getElementById("out-bin");
+    const outDec=document.getElementById("out-dec");
+    const outHex=document.getElementById("out-hex");
+    const outTwos=document.getElementById("out-twos");
+    const lblBin=document.getElementById("lbl-bin");
+    const outPrec=document.getElementById("out-prec");
+    const outStatus=document.getElementById("out-status");
+    const outRange=document.getElementById("out-range");
+    const msgValue=document.getElementById("msg-value");
 
     function state(){
       return {
         valueStr: elValue.value,
         base: parseInt(elBase.value,10),
-        signed: elSigned.value==='true',
-        mIncludesSign: elMincl.value==='true',
-        m: clamp(parseInt(elM.value||'0',10),1,60),
-        n: clamp(parseInt(elN.value||'0',10),0,60),
-        precision: clamp(parseInt(elPrec.value||'0',10),0,18)
+        signed: elSigned.value==="true",
+        mIncludesSign: elMincl.value==="true",
+        m: clamp(parseInt(elM.value||"0",10),1,60),
+        n: clamp(parseInt(elN.value||"0",10),0,60),
+        precision: clamp(parseInt(elPrec.value||"0",10),0,18),
+        group: elGroup.value
       };
     }
 
     function update(){
       const S=state();
       const N=S.signed ? (S.mIncludesSign ? (S.m+S.n) : (S.m+1+S.n)) : (S.m+S.n);
-      const parsed=parseInputToScaled({ valueStr:S.valueStr, base:S.base, signed:S.signed, m:S.m, n:S.n, mIncludesSign:S.mIncludesSign });
+
+      // clear inline error first
+      setFieldError(elValue, msgValue, "");
+
+      // 自動偵測前綴/啟發 → UI 同步
+      var baseForParse=S.base;
+      var pref=detectPrefixBase(S.valueStr);
+      var heur=pref? null : detectHeuristicBase(S.valueStr);
+      if(pref && pref!==S.base){ baseForParse=pref; elBase.value=String(pref); showToast(pref===2?"偵測到 0b 前綴，已切換為二進位":"偵測到 0x 前綴，已切換為十六進位"); }
+      else if(!pref && heur===2 && S.base===10){ baseForParse=2; elBase.value="2"; showToast("偵測為二進位（僅含 0/1），已切換為二進位"); }
+      else if(!pref && heur===16 && S.base===10){ baseForParse=16; elBase.value="16"; showToast("偵測為十六進位（含 A–F），已切換為十六進位"); }
+
+      const parsed=parseInputToScaled({ valueStr:S.valueStr, base:baseForParse, signed:S.signed, m:S.m, n:S.n, mIncludesSign:S.mIncludesSign });
       const err=parsed.err; const scaled=err?0n:parsed.scaled; const overflow=err?false:parsed.overflow;
 
       outPrec.textContent=String(S.precision);
-      lblBin.innerHTML='<span>Binary（Q'+S.m+'.'+S.n+(S.signed?('，m'+(S.mIncludesSign?'含':'不含')+'符號位'):'')+'）</span> <button class="copy-btn" data-copy="#out-bin" title="複製 Binary">⧉</button>';
+      lblBin.innerHTML="<span>Binary（Q"+S.m+"."+S.n+(S.signed?("，m"+(S.mIncludesSign?"含":"不含")+"符號位"):"")+"）</span> <button class=\"copy-btn\" data-copy=\"#out-bin\" title=\"複製 Binary\">⧉</button>";
 
       if(err){
-        outStatus.className='err'; outStatus.textContent='輸入錯誤：'+err;
-        outBin.textContent=outDec.textContent=outHex.textContent=outTwos.textContent='-';
-        outRange.textContent='';
+        outStatus.className="err"; outStatus.textContent="輸入錯誤："+String(err);
+        outBin.textContent=outDec.textContent=outHex.textContent=outTwos.textContent="-";
+        outRange.textContent="";
+        setFieldError(elValue, msgValue, String(err));
+        saveState();
         return;
       }
 
-      outStatus.className=overflow?'err':'ok';
-      outStatus.textContent=overflow?'已飽和到可表示範圍。':'輸入有效，範圍內。';
+      outStatus.className=overflow?"err":"ok";
+      outStatus.textContent=overflow?"已飽和到可表示範圍。":"輸入有效，範圍內。";
 
-      outBin.textContent=binaryWithPointFromScaled(scaled,N,S.n,S.signed);
+      // Binary (apply grouping)
+      const rawBin=binaryWithPointFromScaled(scaled,N,S.n,S.signed);
+      outBin.innerHTML = decorateSign(groupBinaryString(rawBin, S.group, S), S);
+
+      // Decimal
       outDec.textContent=scaledToDecimalString(scaled,S.n,S.precision);
 
+      // Hex（仍以 4 字元分組）
       const hex=hexFromScaled(scaled,N,S.signed);
-      outHex.textContent=(hex.match(/.{1,4}/g)||[hex]).join(' ');
+      outHex.textContent=(hex.match(/.{1,4}/g)||[hex]).join(" ");
 
-      const twosBits=twosComplementPattern(scaled,N,S.signed);
-      outTwos.textContent=(twosBits.match(/.{1,4}/g)||[twosBits]).join(' ');
+      // Two's complement bits：以 m.n 插入小數點，再分組
+      const twosBitsRaw = twosComplementPattern(scaled,N,S.signed);
+      const twosWithDot = insertDotAtMN(twosBitsRaw, S);
+      outTwos.innerHTML = decorateSign(groupBinaryString(twosWithDot, S.group, S), S);
 
       const min=S.signed?(-(1n<<BigInt(N-1))):0n;
       const max=S.signed?((1n<<BigInt(N-1))-1n):((1n<<BigInt(N))-1n);
-      const line1='總位寬：'+N+' 位（'+(S.signed?((S.mIncludesSign?'m 含符號位':'m 不含符號位')+'，'):'')+'整數 '+S.m+' + 小數 '+S.n+'）。解析度：2^-'+S.n+'。Scaled 範圍：['+min.toString()+', '+max.toString()+']';
+      const line1="總位寬："+N+" 位（"+(S.signed?((S.mIncludesSign?"m 含符號位":"m 不含符號位")+"，"):"")+"整數 "+S.m+" + 小數 "+S.n+"）。解析度：2^-"+S.n+"。Scaled 範圍：["+min.toString()+", "+max.toString()+"]";
       const minReal=scaledToDecimalString(min,S.n,S.precision);
       const maxReal=scaledToDecimalString(max,S.n,S.precision);
-      const line2='可表實數範圍：['+minReal+', '+maxReal+']';
-      outRange.textContent=line1+'\n'+line2;
+      const line2="可表實數範圍：["+minReal+", "+maxReal+"]";
+      outRange.textContent=line1+"\n"+line2;
+
+      saveState();
     }
 
-    ;['input','change'].forEach(function(evt){
-      var list=document.querySelectorAll('input,select');
-      for(var i=0;i<list.length;i++){ list[i].addEventListener(evt,update); }
-    });
+    ["input","change"].forEach(function(evt){ var list=document.querySelectorAll("input,select"); for(var i=0;i<list.length;i++){ list[i].addEventListener(evt,update); } });
 
-    // First render
+    // Load persisted state then first render
+    loadState();
     update();
 
     // ===== Quick self-tests (console) =====
     (function selfTests(){
-      var tests=[]; 
-      function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
-      var r = parseInputToScaled({ valueStr:'1.99', base:10, signed:false, m:4, n:2, mIncludesSign:false });
-      eq('pos trunc scaled', r.scaled, 7n);
-      r = parseInputToScaled({ valueStr:'-1.99', base:10, signed:true, m:4, n:2, mIncludesSign:true });
-      eq('neg trunc scaled', r.scaled, -7n);
-      r = parseInputToScaled({ valueStr:'101.11', base:2, signed:false, m:6, n:2, mIncludesSign:false });
-      eq('bin frac', r.scaled, 23n);
-      r = parseInputToScaled({ valueStr:'0b101.11', base:2, signed:false, m:6, n:2, mIncludesSign:false });
-      eq('bin frac with prefix', r.scaled, 23n);
-      r = parseInputToScaled({ valueStr:'FF.A', base:16, signed:false, m:12, n:3, mIncludesSign:false });
-      eq('hex frac', r.scaled, 2045n);
-      r = parseInputToScaled({ valueStr:'0xFF.A', base:16, signed:false, m:12, n:3, mIncludesSign:false });
-      eq('hex frac with prefix', r.scaled, 2045n);
-      r = parseInputToScaled({ valueStr:'-9', base:10, signed:true, m:4, n:0, mIncludesSign:true });
-      eq('signed clamp', r.scaled, -8n);
+      var tests=[]; function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
+      var r = parseInputToScaled({ valueStr:"1.99", base:10, signed:false, m:4, n:2, mIncludesSign:false });
+      eq("pos trunc scaled", r.scaled, 7n);
+      r = parseInputToScaled({ valueStr:"-1.99", base:10, signed:true, m:4, n:2, mIncludesSign:true });
+      eq("neg trunc scaled", r.scaled, -7n);
+      r = parseInputToScaled({ valueStr:"101.11", base:2, signed:false, m:6, n:2, mIncludesSign:false });
+      eq("bin frac", r.scaled, 23n);
+      r = parseInputToScaled({ valueStr:"0b101.11", base:2, signed:false, m:6, n:2, mIncludesSign:false });
+      eq("bin frac with prefix", r.scaled, 23n);
+      r = parseInputToScaled({ valueStr:"FF.A", base:16, signed:false, m:12, n:3, mIncludesSign:false });
+      eq("hex frac", r.scaled, 2045n);
+      r = parseInputToScaled({ valueStr:"0xFF.A", base:16, signed:false, m:12, n:3, mIncludesSign:false });
+      eq("hex frac with prefix", r.scaled, 2045n);
+      r = parseInputToScaled({ valueStr:"-9", base:10, signed:true, m:4, n:0, mIncludesSign:true });
+      eq("signed clamp", r.scaled, -8n);
       // auto as-bits：整數區對齊後補 n 個 0
-      r = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:0, mIncludesSign:true });
+      r = parseInputToScaled({ valueStr:"1001", base:2, signed:true, m:4, n:0, mIncludesSign:true });
       eq("auto bits: '1001' (N=4, signed) -> -7", r.scaled, -7n);
-      r = parseInputToScaled({ valueStr:'F', base:16, signed:true, m:4, n:0, mIncludesSign:true });
+      r = parseInputToScaled({ valueStr:"F", base:16, signed:true, m:4, n:0, mIncludesSign:true });
       eq("auto bits: 'F' (N=4, signed) -> -1", r.scaled, -1n);
-      r = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      r = parseInputToScaled({ valueStr:"1001", base:2, signed:true, m:4, n:4, mIncludesSign:true });
       eq("auto bits: '1001' (N=8, signed, m=4,n=4) -> scaled -112", r.scaled, -112n);
-      r = parseInputToScaled({ valueStr:'0111', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      r = parseInputToScaled({ valueStr:"0111", base:2, signed:true, m:4, n:4, mIncludesSign:true });
       eq("auto bits: '0111' (N=8, signed) -> scaled +112", r.scaled, 112n);
-      r = parseInputToScaled({ valueStr:'9', base:16, signed:true, m:4, n:4, mIncludesSign:true });
+      r = parseInputToScaled({ valueStr:"9", base:16, signed:true, m:4, n:4, mIncludesSign:true });
       eq("auto bits: '9' (N=8, signed) -> scaled -112", r.scaled, -112n);
       // auto binary-point bits：整數補到 m、小數補到 n
-      var r2 = parseInputToScaled({ valueStr:'1001.1', base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      var r2 = parseInputToScaled({ valueStr:"1001.1", base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      // right-align integer bits in bit-pattern (no dot)
+      var r001 = parseInputToScaled({ valueStr:"001", base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("bits '001' right-aligned Q4.4 -> 0001.0000", binaryWithPointFromScaled(r001.scaled, 8, 4, true), "0001.0000");
       eq("auto bin-point: scaled -104", r2.scaled, -104n);
-      eq("bin print for '1001.1' (Q4.4) -> 1001.1000", binaryWithPointFromScaled(r2.scaled, 8, 4, true), '1001.1000');
-      eq("decimal print for '1001.1' (Q4.4) -> -6.5", scaledToDecimalString(r2.scaled, 4, 6), '-6.5');
+      eq("bin print for '1001.1' (Q4.4) -> 1001.1000", binaryWithPointFromScaled(r2.scaled, 8, 4, true), "1001.1000");
+      eq("decimal print for '1001.1' (Q4.4) -> -6.5", scaledToDecimalString(r2.scaled, 4, 6), "-6.5");
       // two's complement correctness
-      var rNeg112 = parseInputToScaled({ valueStr:'1001', base:2, signed:true, m:4, n:4, mIncludesSign:true });
-      eq("twos(~x+1) of -112 -> 01110000", twosComplementPattern(rNeg112.scaled, 8, true), '01110000');
-      var rPos112 = parseInputToScaled({ valueStr:'0111', base:2, signed:true, m:4, n:4, mIncludesSign:true });
-      eq("twos(~x+1) of +112 -> 10010000", twosComplementPattern(rPos112.scaled, 8, true), '10010000');
-      var rZero = parseInputToScaled({ valueStr:'0', base:10, signed:true, m:4, n:4, mIncludesSign:true });
-      eq("twos(~x+1) of 0 -> 00000000", twosComplementPattern(rZero.scaled, 8, true), '00000000');
-      var rMin = parseInputToScaled({ valueStr:'-8', base:10, signed:true, m:4, n:4, mIncludesSign:true });
-      eq("twos(~x+1) of min -> 10000000", twosComplementPattern(rMin.scaled, 8, true), '10000000');
+      var rNeg112 = parseInputToScaled({ valueStr:"1001", base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of -112 -> 01110000", twosComplementPattern(rNeg112.scaled, 8, true), "01110000");
+      var rPos112 = parseInputToScaled({ valueStr:"0111", base:2, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of +112 -> 10010000", twosComplementPattern(rPos112.scaled, 8, true), "10010000");
+      var rZero = parseInputToScaled({ valueStr:"0", base:10, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of 0 -> 00000000", twosComplementPattern(rZero.scaled, 8, true), "00000000");
+      var rMin = parseInputToScaled({ valueStr:"-8", base:10, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("twos(~x+1) of min -> 10000000", twosComplementPattern(rMin.scaled, 8, true), "10000000");
       // update should not throw
-      try { update(); eq('update runs', true, true); } catch(e){ eq('update runs', true, false); }
+      try { update(); eq("update runs", true, true); } catch(e){ eq("update runs", true, false); }
 
-      var pass = tests.filter(function(t){return t[0];}).length; 
-      var fail = tests.filter(function(t){return !t[0];});
-      console.group('[SelfTests]');
-      console.log('Passed: '+pass+'/'+tests.length);
-      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn('FAIL:', t[1], 'got:', t[2], 'expected:', t[3]); }
+      var pass=tests.filter(function(t){return t[0];}).length; var fail=tests.filter(function(t){return !t[0];});
+      console.group("[SelfTests]");
+      console.log("Passed: "+pass+"/"+tests.length);
+      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn("FAIL:", t[1], "got:", t[2], "expected:", t[3]); }
+      console.groupEnd();
+    })();
+
+    // === Grouping self-tests ===
+    (function groupingTests(){
+      var tests=[]; function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
+      var Sauto={signed:true,mIncludesSign:true,m:4,n:4};
+      eq("group auto binary Q4.4 '1001.0000'", groupBinaryString("1001.0000","auto",Sauto), "1001.0000");
+      eq("group auto two's with dot Q4.4 -> '0111.0000'", groupBinaryString(insertDotAtMN("01110000",Sauto), "auto", Sauto), "0111.0000");
+      var Sauto2={signed:true,mIncludesSign:false,m:4,n:4};
+      eq("group auto two's with dot (m不含符號位) -> '1 0000.0000'", groupBinaryString(insertDotAtMN("100000000",Sauto2), "auto", Sauto2), "1 0000.0000");
+      var pass=tests.filter(function(t){return t[0];}).length; var fail=tests.filter(function(t){return !t[0];});
+      console.group("[GroupingTests]");
+      console.log("Passed: "+pass+"/"+tests.length);
+      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn("FAIL:", t[1], "got:", t[2], "expected:", t[3]); }
+      console.groupEnd();
+    })();
+
+    // === Prefix auto-detection self-tests ===
+    (function prefixTests(){
+      var tests=[]; function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
+      var r1 = parseInputToScaled({ valueStr:"0xFF.A", base:10, signed:false, m:12, n:3, mIncludesSign:false });
+      eq("prefix 0x with base=10", r1.scaled, 2045n);
+      var r2 = parseInputToScaled({ valueStr:"0b101.11", base:10, signed:false, m:6, n:2, mIncludesSign:false });
+      eq("prefix 0b with base=10", r2.scaled, 23n);
+      var pass=tests.filter(function(t){return t[0];}).length; var fail=tests.filter(function(t){return !t[0];});
+      console.group("[PrefixTests]");
+      console.log("Passed: "+pass+"/"+tests.length);
+      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn("FAIL:", t[1], "got:", t[2], "expected:", t[3]); }
+      console.groupEnd();
+    })();
+
+    // === Heuristic auto-detection self-tests ===
+    (function heuristicTests(){
+      var tests=[]; function eq(name,a,b){ tests.push([Object.is(a,b),name,a,b]); }
+      // base=10 但輸入只含 0/1 與小數點 → 當作二進位
+      var t1 = parseInputToScaled({ valueStr:"101.11", base:10, signed:false, m:6, n:2, mIncludesSign:false });
+      eq("heuristic bin (101.11) with base=10", t1.scaled, 23n);
+      // base=10 且無小數點、只含 0/1 → 當作位元圖樣（Q4.4, signed）
+      var t2 = parseInputToScaled({ valueStr:"1001", base:10, signed:true, m:4, n:4, mIncludesSign:true });
+      eq("heuristic bits (1001) base=10 → -112", t2.scaled, -112n);
+      // 含 5 → 不應被當成二進位（n=1 → 乘 2）
+      var t3 = parseInputToScaled({ valueStr:"10.5", base:10, signed:false, m:6, n:1, mIncludesSign:false });
+      eq("decimal 10.5 (not binary)", t3.scaled, 21n);
+      // hex heuristic: base=10 但輸入包含 A–F → 視為十六進位
+      var t4 = parseInputToScaled({ valueStr:"FF.A", base:10, signed:false, m:12, n:3, mIncludesSign:false });
+      eq("heuristic hex FF.A with base=10", t4.scaled, 2045n);
+      var t5 = parseInputToScaled({ valueStr:"ff.a", base:10, signed:false, m:12, n:3, mIncludesSign:false });
+      eq("heuristic hex ff.a with base=10 (lowercase)", t5.scaled, 2045n);
+      // hex bit-pattern with letters (Q8.0, signed, m含符號位)
+      var t6 = parseInputToScaled({ valueStr:"7F", base:10, signed:true, m:8, n:0, mIncludesSign:true });
+      eq("heuristic hex bits 7F (Q8.0 signed) -> 127", t6.scaled, 127n);
+      var pass=tests.filter(function(t){return t[0];}).length; var fail=tests.filter(function(t){return !t[0];});
+      console.group("[HeuristicTests]");
+      console.log("Passed: "+pass+"/"+tests.length);
+      for(var i=0;i<fail.length;i++){ var t=fail[i]; console.warn("FAIL:", t[1], "got:", t[2], "expected:", t[3]); }
       console.groupEnd();
     })();
   </script>
